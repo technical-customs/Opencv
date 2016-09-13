@@ -137,9 +137,7 @@ class Server{
         
         
         try{
-            //System.out.println("Accepted " + channel.toString());
-            
-            //write(key,);
+            write(channel,"Welcome");
             addUserToList(channel);
         }catch(Exception ex){
             System.out.println("Accepting Ex: " + ex);
@@ -198,8 +196,9 @@ class Server{
             
             return;
         }
-        
-        //System.out.println("Key read: " + channel.toString());
+        byte[] data = new byte[numRead];
+        System.arraycopy(buffer.array(),0,data,0, numRead);
+        System.out.println(channel.toString() + ": " + new String(data));
         
     }
     private void write(SocketChannel channel, String string) throws IOException{
@@ -259,7 +258,7 @@ class Server{
                         
                         Iterator<SocketChannel> userIter = userList.iterator();
                         
-                        System.out.println("Users: ");
+                        //System.out.println("Users: ");
 
                         while(userIter.hasNext()){
                             SocketChannel sc = userIter.next();
@@ -267,7 +266,8 @@ class Server{
                             if(sc.socket().isClosed()){
                                 userIter.remove();
                             }else{
-                                System.out.println(sc.toString());
+                                //write(sc,"Test");
+                                //System.out.println(sc.toString());
                             }
                         }
                     }catch(Exception ex){
