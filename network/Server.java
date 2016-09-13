@@ -14,15 +14,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 class Server{
-    private List<SocketChannel> userList;
-    
+    final private List<SocketChannel> userList;
     private String ipAddress;
     private int portNumber;
-    
     private boolean connected = false;
     private ServerSocketChannel techServer;
     private Selector sSelector;
-    
+
     
     public Server(){
         userList = new ArrayList();
@@ -175,10 +173,10 @@ class Server{
             
         }
     }
-    protected synchronized boolean isServerConnected(){
+    public synchronized boolean isServerConnected(){
         return techServer.isOpen();
     }
-    protected synchronized boolean isServerClosed(){
+    public synchronized boolean isServerClosed(){
         return !techServer.isOpen();
     }
     public synchronized boolean getConnected(){
@@ -302,8 +300,8 @@ class Server{
                             x++;
                             
                             //System.out.println(x);
-                            if(x == 120){
-                                System.out.println("Two minute timeout");
+                            if(x == 30){
+                                System.out.println("Timeout");
                                 server.serverDisconnect();
                                 System.exit(0);
                             }
