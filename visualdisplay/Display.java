@@ -3,48 +3,47 @@ package visualdisplay;
 import classifierloader.ClassifierLoader;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Image;
+import java.awt.RenderingHints;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.imageio.ImageIO;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
-import main.TestMain;
 import org.opencv.core.Core;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
 import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfRect;
-import org.opencv.core.Rect;
-import org.opencv.videoio.VideoCapture;
-import org.opencv.imgproc.Imgproc;
 import org.opencv.imgcodecs.Imgcodecs;
 
 public class Display extends JPanel{
-    public static final String testPicLoc = "C:/Users/" + System.getProperty("user.name") + "/Desktop/TestPic.jpg";
-    
-    private final int width = 720;
+    public final String picExt = ".jpg";
+    public final String picLocation = "C:/Users/" + System.getProperty("user.name") + "/Desktop/OpenCvPicFolder";
+    private final Path picLocationPath = Paths.get(picLocation);
+    private final int width = 420;
     private final int height = width / 16 * 9;
     private final Dimension size = new Dimension(width,height);
-    private volatile boolean camRun = false;
     
+    private final int fontSize = 18;
+    private final Font infoPanelFont = new Font("TimesRoman", Font.PLAIN, fontSize);
     private Graphics2D g2;
+    private boolean imageProcessMenu;
     //JFrame
     private JFrame frame;
     private JPanel southPanel;
@@ -54,21 +53,24 @@ public class Display extends JPanel{
     private JTextField folderSaveField;
     
     //Camera
-    private ScheduledExecutorService timer;
-    private VideoCapture stream;
-    private Mat mat;
-    private volatile BufferedImage bi;
-    private ClassifierLoader cl;
-    private boolean detectFaces = false;
-    private MatOfRect faceDetections;
-    private boolean detectEyes = true;
-    private MatOfRect eyeDetections;
-    private MatOfByte mem;
-    private List circles;
+    private boolean timer = false;
+    private volatile int ttime = 0;
+    private final FrameGrabber frameGrabber;
+    private final ClassifierLoader cl;
+    private final boolean detectFaces = false;
+    private final MatOfRect faceDetections;
+    private final boolean detectEyes = true;
+    private final MatOfRect eyeDetections;
+    private final MatOfByte mem;
+    private final List circles;
     
-    public Display(){
+    public Display() throws IOException{
+        if(Files.notExists(picLocationPath)){
+            System.out.println("Making folder");
+            Files.createDirectories(picLocationPath);
+        }
         System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-        
+        frameGrabber = new FrameGrabber();
         cl = new ClassifierLoader();
         faceDetections = new MatOfRect();
         eyeDetections = new MatOfRect();
@@ -79,10 +81,12 @@ public class Display extends JPanel{
         SwingUtilities.invokeLater(new Runnable(){
             @Override
             public void run(){
-                setupGUI();
+                setupGUI(); 
             }
         });
     }
+    
+    
     @Override
     protected void paintComponent(Graphics g){
         super.paintComponent(g);
@@ -92,83 +96,42 @@ public class Display extends JPanel{
         g2.setColor(Color.blue);
         g2.fillRect(0, 0, this.getWidth(), this.getHeight());
         
-        //if camRun is true, draw image to display
-        if(camRun){
-            if(bi != null){
-                g2.drawImage(bi, null, 0, 0);
-                
-                //create grayscaled mat of bi
-                Mat m2 = new Mat();
-                Imgproc.cvtColor(bufImgToMat(bi), m2, Imgproc.COLOR_BGR2GRAY);
-                
-                cl.getFaceDetector().detectMultiScale(m2, faceDetections);
-                cl.getEyeDetector().detectMultiScale(m2, eyeDetections);
-                
-                g2.setColor(Color.yellow);
-                
-                if(detectFaces){
-                    for (Rect rect : faceDetections.toArray()) {
-                        g2.drawRect(rect.x, rect.y, rect.width, rect.height);
-                    }
-                    
-                    
-                }
-                if(detectEyes){
-                    for (Rect rect : eyeDetections.toArray()) {
-                        
-                        //System.out.println("Eye");
-                        //Imgproc.rectangle(bufImgToMat(bi), new Point(rect.x, rect.y), new Point(rect.x+rect.width, rect.y+rect.height), new Scalar(0,255,0));
-                        g2.drawOval(rect.x, rect.y, rect.width, rect.height);
-                        
-                    }
-                    /*
-                    if(!eyeDetections.empty()){
-                        Rect eye1 = eyeDetections.toArray()[0];
-                        //Rect eye2 = eyeDetections.toArray()[1];
-                        //g2.drawRect(eye1.x, eye1.y, eye1.width, eye1.height); //get region of  eye
-                        
-                        //create mat of eye
-                        Rect er = new Rect(eye1.x, eye1.y, eye1.width, eye1.height);
-                        //Rect er2 = new Rect(eye2.x, eye2.y, eye2.width, eye2.height);
-                        
-                        
-                        Mat em = new Mat(m2, er); //eye mat 1
-                        //Mat em = m2.clone();
-                        //Imgproc.cvtColor(em, em, Imgproc.COLOR_GRAY2BGR);
-                        
-                        //Mat em2 = new Mat(m2, er2);
-                        //Imgproc.cvtColor(em2, em2, Imgproc.COLOR_GRAY2BGR);
-                        
-                        //Mat be = Mat.zeros(em.rows(),em.cols()*2+10,em.type()); //mat to hold both eyes
-                        //this.bi = matToBufImg(em); //replace bi with eye mat
-                        
-                        //Mat mm = bufImgToMat(bi);
-                        //System.out.println(mm);
-                        
-                        Imgproc.resize(em, em, m2.size(),0,0,Imgproc.INTER_LINEAR);
-                        
-                        
-                        
-                        Imgproc.medianBlur(em, em, 15);
-                        Imgproc.Canny(em, em, 5, 15);
-                        
-                        //Imgproc.threshold(em, em, 70, 255, Imgproc.THRESH_BINARY);
-                        
-                        
-                        this.bi = matToBufImg(em);
-                        
-                        
-                        return;
-                        
-                    }
-                    */
-                }
-                
+        if(frameGrabber == null){
+            return;
+        }
+        
+        if(frameGrabber.getStreamOn()){
+            try {
+                //Thread.sleep(33);
+            }catch(Exception ex){}
+            
+            frame.setSize(frameGrabber.getSize());
+            //g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.drawImage(frameGrabber.getImage(), null, 0, 0);
+        }else{
+            frame.setSize(width,height);
+        }
+        //Draw options in top left corner
+        g2.setColor(Color.yellow);
+        if(frameGrabber.getStreamOn()){
+            g2.drawString("Options: P - Process, S - Save, T - Timer, O - Open Stream, E - Exit Stream, Q - Quit",0,fontSize);
+            
+            if(imageProcessMenu){
+                g2.drawString("Process Options: B - Blur, Gray - G",0,(fontSize*2)+2 );
             }
+            
+            if(timer){
+                g2.setFont(new Font("TimesRoman", Font.PLAIN, width/4));
+                if(ttime > 0){
+                    g2.drawString(ttime + "", frame.getWidth()/2, frame.getHeight()/2);
+                }
+            }
+            
+        }else{
+            g2.drawString("Options: O - Open Stream, Q - Quit",0,fontSize);
         }
         repaint();
         
-        g2.dispose();
         
     }
     private void setupGUI(){
@@ -190,22 +153,130 @@ public class Display extends JPanel{
                     //write file
                 }
                 */
-                
-                if(camRun){
-                    camRun = false;
-                }
-                if(stream != null && stream.isOpened()){
-                    stream.release();
-                }
+                frameGrabber.stop();
                 System.exit(0);
             }
         });
+        frame.addKeyListener(new KeyAdapter(){
+            @Override
+            public void keyTyped(KeyEvent ke){
+                //options: S-save, E-exit stream, O-open stream, Q-quit
+                
+                int keyCode = Character.toUpperCase(ke.getKeyChar());
+                
+                if(keyCode == (KeyEvent.VK_S)){
+                    savePic();
+                }
+                if(keyCode == (KeyEvent.VK_T)){
+                    String tm = JOptionPane.showInputDialog(null,"Enter Time 1-10:",null,1);
+                    
+                    if(tm == null || tm.isEmpty() || tm.contains(" ")){
+                        return;
+                    }
+                    
+                    int t;
+                    
+                    try{
+                        t = Integer.parseInt(tm);
+                        
+                        if(t < 0 && t > 10){
+                            return;
+                        }
+                        timerSave(t);
+                        
+                    }catch(Exception ex){
+                        System.out.println("Time Input Error");
+                        return;
+                    }
+                    
+                    
+                }
+                if(keyCode == (KeyEvent.VK_O)){ //option to open a stream on specific device
+                    if(frameGrabber.getStreamOn()){
+                        System.out.println("Stream Still Open");
+                        //return;
+                    }
+                    
+                    String dev = JOptionPane.showInputDialog(null,"Enter Device ID:",null,1);
+                    
+                    if(dev == null || dev.isEmpty() || dev.contains(" ")){
+                        return;
+                    }
+                    
+                    int streamdev;
+                    
+                    try{
+                        streamdev = Integer.parseInt(dev);
+                        
+                        if(streamdev < 0){
+                            return;
+                        }
+                        System.out.println("STARTING STREAM " + streamdev);
+                        frameGrabber.start(streamdev);
+                        
+                    }catch(Exception ex){
+                        System.out.println("Stream Device Not Available");
+                        return;
+                    }
+                    
+                }
+                if(keyCode == (KeyEvent.VK_E)){
+                    if(frameGrabber.getStreamOn()){
+                        frameGrabber.stop();
+                    }
+                }
+                if(keyCode == (KeyEvent.VK_Q)){
+                    if(frameGrabber.getStreamOn()){
+                        frameGrabber.stop();
+                    }
+                    System.exit(0);
+                }
+                if(keyCode == (KeyEvent.VK_P)){
+                    if(frameGrabber.getStreamOn()){
+                        frameGrabber.setImageProcess(!frameGrabber.getImageProcess());
+                        imageProcessMenu = frameGrabber.getImageProcess();
+                    }
+                }
+                
+                //image process keys: B - Blur, G - Gray, E - Eye detect, going to add slide scale
+                if(keyCode == (KeyEvent.VK_B)){
+                    if(frameGrabber.getStreamOn()){
+                        if(imageProcessMenu){
+                            frameGrabber.setBlur(!frameGrabber.getBlur());
+                        }
+                    }
+                }
+                if(keyCode == (KeyEvent.VK_G)){
+                    if(frameGrabber.getStreamOn()){
+                        if(imageProcessMenu){
+                            frameGrabber.setGrayScale(!frameGrabber.getGrayScale());
+                        }
+                    }
+                }
+                if(keyCode == (KeyEvent.VK_E)){
+                    if(frameGrabber.getStreamOn()){
+                        if(imageProcessMenu){
+                            
+                        }
+                    }
+                }
+                if(keyCode == (KeyEvent.VK_F)){
+                    if(frameGrabber.getStreamOn()){
+                        if(imageProcessMenu){
+                            
+                        }
+                    }
+                }
+            }
+        });
+        frame.setFocusable(true);
+        frame.requestFocus();
+        
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
     }
-    
-    public void setRunner(boolean camRun){
-        this.camRun = camRun;
+    public void runCamera(int device){
+        frameGrabber.start(device);
     }
     public void setTitle(String title){
         if(frame != null){
@@ -219,140 +290,61 @@ public class Display extends JPanel{
             return null;
         }
     }
-    
-    //Camera
-    Runnable frameGrabber = new Runnable() {
-        @Override
-        public void run(){
-            synchronized(Display.this){
-                if(camRun){
-                    try{
-                        stream.retrieve(mat);
-            
-                        //resize frame
-                        setSize(mat.cols(),mat.rows());
-                        frame.setSize(getSize());
-                        
-                        //flip for true mirror view
-                        Core.flip(mat, mat,1);
-                        
-                        //test image processing
-                        Mat m1 = new Mat();
-                        Imgproc.cvtColor(mat, m1, Imgproc.COLOR_BGR2GRAY);
-                        
-                        
-                        Imgproc.medianBlur(m1, m1, 15);
-                        
-                        //Imgproc.THRESH_BINARY_INV, 15, 4);
-                        mat = m1;
-                        
-                        //encode mat to matofbyte for memory buffered image
-                        Imgcodecs.imencode(".jpg", mat, mem);
-                        Image im = ImageIO.read(new ByteArrayInputStream(mem.toArray()));
-                        
-                        bi = (BufferedImage) im;
-                        
-                    }catch(Exception ex){
-                        System.out.println("Exception: " + ex);
-                    }
-                    
-                    
-                
-                }
-            }
-            
-            
-        }
-    };
-    public void loadPicture(BufferedImage bi){
-        try{
-            if(bi == null){
-                return;
-            }
-             System.out.println("lp BI");
-            loadPicture(bufImgToMat(bi));
-        }catch(Exception ex){
-            System.out.println(ex);
-        }
-    }
-    public void loadPicture(Mat m){
-        try{
-            if(m == null){
-                return;
-            }
-            
-            this.bi = matToBufImg(m);
-            setSize(m.cols(),m.rows());
-            frame.setSize(getSize());
-            camRun = true;
-        }catch(Exception ex){
-            System.out.println(ex);
-        }
+    public String getSavePath(String picName, String ext){
+        return picLocationPath + "/" + picName + ext;
     }
     
-    public void loadPicture(String url){
-        try{
-            if(url == null || url.length() <=0){
-                return;
-            }
-            System.out.println("lp URL");
-            Mat m = Imgcodecs.imread(url);
-            loadPicture(m);
-            
-        }catch(Exception ex){
-            System.out.println(ex);
-        }
-    }
-    
-    public void runCamera(int device){
-        stream = new VideoCapture(device);
-        
-        
-        if(!stream.isOpened()){
-            System.out.println("Could not open stream");
+    private void timerSave(int time){
+        if(!frameGrabber.getStreamOn()){
             return;
         }
-        camRun = true;
-        mat = new Mat();
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+               timer = true;
+               ttime = time;
+                try{
+                    while(ttime > 0){
+                        //print number on screen
+                        System.out.println("Time: " + ttime);
+                        
+                        Thread.sleep(1000);
+                        ttime--;
+                    }
+                    if(ttime == 0){
+                        System.out.println("Time Save");
+                        savePic();
+                        timer = false;
+                    }
+                }catch(Exception ex){
 
-        timer = Executors.newSingleThreadScheduledExecutor();
-        timer.scheduleAtFixedRate(frameGrabber, 0, 33, TimeUnit.MILLISECONDS);
-        
-    }
-    
-    public Mat bufImgToMat(BufferedImage bi) {
-        Mat m = new Mat(bi.getHeight(), bi.getWidth(), CvType.CV_8UC3);
-        
-        byte[] data = ((DataBufferByte) bi.getRaster().getDataBuffer()).getData();
-        
-        m.put(0, 0, data);
-        
-        return m;
-    }
-    
-    public BufferedImage matToBufImg(Mat m){
-        try {
-            
-            MatOfByte mob = new MatOfByte();
-            Imgcodecs.imencode(".jpg", m, mob);
-            byte[] bytes = mob.toArray();
-            
-            int type = BufferedImage.TYPE_BYTE_GRAY;
-            if (m.channels() > 1) {
-                type = BufferedImage.TYPE_3BYTE_BGR;
+                } 
             }
-            BufferedImage img = ImageIO.read(new ByteArrayInputStream(bytes));
-            return img;
-            
-        } catch (IOException ex) {
-            Logger.getLogger(Display.class.getName()).log(Level.SEVERE, null, ex);
-            return null;
+        }).start();
+        
+        
+    }
+    private void savePic(){
+        if(frameGrabber.getStreamOn()){
+            String timeStamp = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss").format(new Date());
+            System.out.println(timeStamp + "");
+            Imgcodecs.imwrite(getSavePath(timeStamp, picExt), frameGrabber.getMat());
         }
     }
-    
+    private void savePic(String picName){
+        if(frameGrabber.getStreamOn()){
+            Imgcodecs.imwrite(getSavePath(picName, picExt), frameGrabber.getMat());
+        }
+    }
     public static void main(String[] args){
-        Display display = new Display();
+        Display display;
+        try {
+            display = new Display();
+            //display.runCamera(0);
+        } catch (IOException ex) {
+            Logger.getLogger(Display.class.getName()).log(Level.SEVERE, null, ex);
+        }
         //display.loadPicture(testPicLoc);
-        display.runCamera(0);
+        
     }
 }
