@@ -26,7 +26,6 @@ class Server{
     final private String logfileDir = System.getProperty("user.home")+ "/Desktop/log/";
     final private String logfileName = logfileDir + "log.txt";
     final private File logfile;
-    private BufferedWriter buf;
     
     private volatile List<SocketChannel> userList;
     private String ipAddress;
@@ -275,15 +274,22 @@ class Server{
     }
     
     //UserList
-    public void closeUser(SocketChannel s) throws IOException{
-        Iterator<SocketChannel> userIter = userList.iterator();
+    public void closeUser(SocketChannel s){
+        synchronized(getUserList()){
+            Iterator<SocketChannel> userIter = userList.iterator();
         
-        while(userIter.hasNext()){
-            SocketChannel sc = userIter.next();
-            if(s.equals(sc)){
-                sc.close();
+            while(userIter.hasNext()){
+                SocketChannel sc = userIter.next();
+                if(s.equals(sc)){
+                    try {
+                        sc.close();
+                    } catch (IOException ex) {
+                        System.err.println("User Close Exception: " + ex);
+                        log("User Close Exception: " + ex);
+                    }
+                }
+
             }
-            
         }
     }
     private void closeAllUsers() throws IOException{
@@ -362,6 +368,53 @@ class Server{
         }).start();
     }
     
+    public void log(String string){
+       
+        try(BufferedWriter buff = new BufferedWriter(new FileWriter(logfileName, true));) {
+            
+            LocalDateTime now = LocalDateTime.now();
+            String stamp = now.format(DateTimeFormatter.ofPattern("MM/dd/yyy h:mm:ss.SSS a"));
+            
+            
+            buff.append(stamp);
+            buff.append(": ");
+            buff.append(string);
+            buff.newLine();
+            buff.flush();  
+        } catch (IOException ex) {
+            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+    }
+    public File getLogFile(){
+        if(Files.exists(Paths.get(logfileName))){
+            return new File(logfileName);
+        }
+        return null;
+    }
+    
+    protected void broadcastMessage(String string){
+        if(userList.size() <= 0){
+            return;
+        }
+        synchronized(getUserList()){
+            try{
+                Iterator<SocketChannel> uli = getUserList().iterator();
+                while(uli.hasNext()){
+                    SocketChannel u = uli.next();
+                    System.out.println("SERVER TO " + u.toString() + ": " + string);
+                    log("SERVER TO " + u.toString() + ": " + string);
+                    write(u,string);
+
+                }
+            }catch(Exception ex){
+                System.err.println("Broadcast exception: " + ex);
+                log("Broadcast exception: " + ex);
+                
+            }
+        }
+    }
+    
     
     private void timeout(int time){
         if(time < 0){
@@ -408,13 +461,7 @@ class Server{
                         System.out.println("SERVER: " + line);
                         log("SERVER: " + line);
                         
-                        Iterator<SocketChannel> uli = getUserList().iterator();
-                        while(uli.hasNext()){
-                            SocketChannel u = uli.next();
-                            System.out.println("SERVER TO " + u.toString() + ": " + line);
-                            log("SERVER TO " + u.toString() + ": " + line);
-                            write(u,line);
-                        }
+                        broadcastMessage(line);
                               
                     }
 
@@ -426,31 +473,8 @@ class Server{
         }).start();
         
     }
-    public void log(String string){
-       
-        try(BufferedWriter buff = new BufferedWriter(new FileWriter(logfileName, true));) {
-            
-            LocalDateTime now = LocalDateTime.now();
-            String stamp = now.format(DateTimeFormatter.ofPattern("MM/dd/yyy h:mm:ss.SSS a"));
-            
-            
-            buff.append(stamp);
-            buff.append(": ");
-            buff.append(string);
-            buff.newLine();
-            buff.flush();  
-        } catch (IOException ex) {
-            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        
-    }
-    public File getLogFile(){
-        if(Files.exists(Paths.get(logfileName))){
-            return new File(logfileName);
-        }
-        return null;
-    }
     
+   
     public static void main(String[] args) throws IOException{
         //Display display = new Display();
         Server server = new Server();

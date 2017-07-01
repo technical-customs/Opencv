@@ -291,7 +291,7 @@ class ClientGui extends JFrame{
         displayedTextArea.append(string);
     }
     public boolean isDisplayEmpty(){
-        return displayedTextArea.getText().length() <= 0 || displayedTextArea.getText() == null;
+        return displayedTextArea.getText().isEmpty();
     }
     //*****************END DISPLAY INFO********************//
     

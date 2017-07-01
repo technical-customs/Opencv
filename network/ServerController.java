@@ -7,19 +7,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
-import java.nio.charset.CharsetEncoder;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.DefaultListModel;
 import javax.swing.JFrame;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
@@ -53,8 +45,14 @@ class ServerController{
         gui.serverOffButtonListener(new ServerOffAction());
         gui.portConnectButtonListener(new PortConnectAction());
         gui.portDisconnectButtonListener(new PortDisconnectAction());
-        //gui.userSelectionListener(new UserSelectAction());
-        //gui.kickUserButtonListener(new KickUserAction());
+        
+        gui.sendButtonListener(new SendButtonAction());
+        gui.clearButtonListener(new ClearButtonAction());
+        gui.deleteLogButtonListener(new DeleteLogButtonAction());
+        
+        gui.userSelectionListener(new UserSelectAction());
+        gui.kickUserButtonListener(new KickUserAction());
+        gui.kickAllButtonListener(new KickAllAction());
         
         
     }
@@ -122,6 +120,7 @@ class ServerController{
                     synchronized(getuserList()){
                         while(server.isServerConnected()){
                             gui.enableUserClick(gui.getUserListModel().size() > 0);
+                            gui.enableKickAllButton(gui.getUserListModel().size() > 0);
                             
                             if(getuserList().size() == gui.getUserListModel().size()){
                                 //same size
@@ -261,6 +260,7 @@ class ServerController{
                             server.log("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber());
                             //Init here............
                             checkForUsers();
+                            gui.enableTextEditing(true);
                             //checkForMessages();
                             logGrabber();
                     }
@@ -284,6 +284,8 @@ class ServerController{
             
             if(isServerClosed()){
                 gui.enablePortEditing(true);
+                gui.enableTextEditing(false);
+                
                 gui.setTitle("-");
                 clearUserList();
                 
@@ -293,25 +295,50 @@ class ServerController{
         }
     }
     
+    class SendButtonAction implements ActionListener{
+
+        @Override
+        public void actionPerformed(ActionEvent ae) {
+            if(!gui.getEnteredText().isEmpty()){
+                server.log("SERVER: " + gui.getEnteredText());
+                server.broadcastMessage(gui.getEnteredText());
+                
+                
+                gui.clearEnteredTextArea();
+            }
+        }
+        
+    }
+    class ClearButtonAction implements ActionListener{
+
+        @Override
+        public void actionPerformed(ActionEvent ae) {
+            if(gui.getEnteredText() != null){
+                gui.clearEnteredTextArea();
+            }
+        }
+        
+    }
+    class DeleteLogButtonAction implements ActionListener{
+
+        @Override
+        public void actionPerformed(ActionEvent ae) {
+        
+        }
+        
+    }
+    
     class UserSelectAction implements ListSelectionListener{
 
         @Override
         public void valueChanged(ListSelectionEvent e) {
            try{
-               
-               ListSelectionModel lsm = (ListSelectionModel) e.getSource();
-               
                if(!e.getValueIsAdjusting()){
                    JList source = (JList)e.getSource();
                    String sel = source.getSelectedValue().toString();
-                   System.out.println("Selection Made: " + sel);
-                   
-                   int index = gui.getUserList().getSelectedIndex();
 
-                    String su = gui.getUserList().getSelectedValue();
-                    System.out.println("SELECTED: " + su);
-
-                    if(!su.isEmpty()){
+                    if(!sel.isEmpty()){
+                        
                         gui.enableKickButton(true);
                     }else{
                         gui.enableKickButton(false);
@@ -322,6 +349,7 @@ class ServerController{
                
            }catch(Exception ex){
                System.err.println("USER SELECT ex: " + ex);
+               server.log("USER SELECT ex: " + ex);
            }
            
         }
@@ -343,21 +371,23 @@ class ServerController{
                     SocketChannel sc = uli.next();
                     
                     if(sc.toString().equals(su)){
-                        try {
-                            System.out.println("Kick " + sc);
-                            server.log("Kick " + sc);
-                            server.closeUser(sc);
-                            //gui.getUserList().clearSelection();
-                        } catch (IOException ex) {
-                            Logger.getLogger(ServerController.class.getName()).log(Level.SEVERE, null, ex);
-                        }
+                        System.out.println("Kick " + sc);
+                        server.log("Kick " + sc);
+                        server.closeUser(sc);
                     }
                 }
             }
             
         }
     }
-    
+    class KickAllAction implements ActionListener{
+
+        @Override
+        public void actionPerformed(ActionEvent ae) {
+        
+        }
+        
+    }
     //**************END ACTION CLASSES*************//
     
     

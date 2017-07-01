@@ -4,9 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.Iterator;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.text.DefaultCaret;
 
@@ -35,6 +33,11 @@ class ServerGui extends JFrame{
     private JTextArea logArea;
     private JScrollPane logScroll;
     
+    private JTextField enteredTextArea;
+    private JButton sendButton;
+    private JButton clearButton;
+    private JButton deleteLogButton;
+    
     //panel 3 - user info and control panel
     private DefaultListModel<String> userListModel;
     private JPanel userPanel;
@@ -42,6 +45,7 @@ class ServerGui extends JFrame{
     private JList<String> userList;
     private JScrollPane userScroll;
     private JButton kickUserButton;
+    private JButton kickAllButton;
     
    
     public ServerGui(){
@@ -105,6 +109,12 @@ class ServerGui extends JFrame{
         northernConnectionPanel.add(onOffPanel);
         northernConnectionPanel.add(searchAndConnectPanel);
         connectionPanel.add(northernConnectionPanel, BorderLayout.NORTH);
+        
+        JPanel logButtonPanel = new JPanel(new GridLayout(1,2));
+        deleteLogButton = new JButton("Delete Log");
+        logButtonPanel.add(deleteLogButton);
+        connectionPanel.add(logButtonPanel, BorderLayout.SOUTH);
+        
         mainPanel.add(connectionPanel, BorderLayout.WEST);
         
         //panel 2
@@ -120,6 +130,9 @@ class ServerGui extends JFrame{
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         logPanel.add(logScroll);
         
+        enteredTextArea = new JTextField();
+        logPanel.add(enteredTextArea, BorderLayout.SOUTH);
+        
         mainPanel.add(logPanel, BorderLayout.CENTER);
         
         //panel 3
@@ -132,11 +145,24 @@ class ServerGui extends JFrame{
         userScroll = new JScrollPane(userList,
                 JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                 JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        JPanel kickButtonPanel = new JPanel(new GridLayout(1,2));
         kickUserButton = new JButton("Kick User");
+        kickAllButton = new JButton("Kick All");
+        kickButtonPanel.add(kickUserButton);
+        kickButtonPanel.add(kickAllButton);
         
         userInfoGroupPanel.add(userScroll, BorderLayout.CENTER);
-        userInfoGroupPanel.add(kickUserButton, BorderLayout.SOUTH);
+        userInfoGroupPanel.add(kickButtonPanel, BorderLayout.SOUTH);
         userPanel.add(userInfoGroupPanel, BorderLayout.NORTH);
+        
+        
+        JPanel textButtonPanel = new JPanel(new GridLayout(1,2));
+        sendButton = new JButton("SEND");
+        clearButton = new JButton("CLR");
+        textButtonPanel.add(sendButton);
+        textButtonPanel.add(clearButton);
+        userPanel.add(textButtonPanel, BorderLayout.SOUTH);
+        
         mainPanel.add(userPanel, BorderLayout.EAST);
         
         this.getContentPane().add(mainPanel);
@@ -163,18 +189,26 @@ class ServerGui extends JFrame{
         enablePortConnectButton(activate);
         enablePortDisconnectButton(!activate);
     }
-    
+    protected void enableTextEditing(boolean activate){
+        enableSendButton(activate);
+        enableClearButton(activate);
+        enableEnteredTextArea(activate);
+    }
     protected void enableAll(){
         enablePower(true);
         enablePortEditing(true);
-        //enableUserInfo(true);
     }
     protected void disableAll(){
         serverOnButton.setEnabled(true);
         serverOffButton.setEnabled(false);
         portConnectButton.setEnabled(false);
         portDisconnectButton.setEnabled(false);
+        enteredTextArea.setEditable(false);
+        sendButton.setEnabled(false);
+        clearButton.setEnabled(false);
+        deleteLogButton.setEnabled(false);
         kickUserButton.setEnabled(false);
+        kickAllButton.setEnabled(false);
         enablePortField(false);
         enableUserClick(false);
     }
@@ -194,8 +228,21 @@ class ServerGui extends JFrame{
     private void enablePortDisconnectButton(boolean activate){
         portDisconnectButton.setEnabled(activate);
     }
+    
+    protected void enableSendButton(boolean activate){
+        sendButton.setEnabled(activate);
+    }
+    protected void enableClearButton(boolean activate){
+        clearButton.setEnabled(activate);
+    }
+    protected void enableDeleteLogButton(boolean activate){
+        deleteLogButton.setEnabled(activate);
+    }
     public void enableKickButton(boolean activate){
         kickUserButton.setEnabled(activate);
+    }
+    public void enableKickAllButton(boolean activate){
+        kickAllButton.setEnabled(activate);
     }
     //*****************END BUTTON ENABLING*****************//
     
@@ -203,11 +250,14 @@ class ServerGui extends JFrame{
     private void enablePortField(boolean activate){
         portField.setEditable(activate);
     }
+    protected void enableEnteredTextArea(boolean activate){
+        enteredTextArea.setEditable(activate);
+    }
     public void enableUserClick(boolean activate){
         userList.setEnabled(activate);
-        
-        
     }
+    
+    
     //************* ENDFIELD DISABLING********************//
     
     
@@ -229,7 +279,21 @@ class ServerGui extends JFrame{
         caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
         logArea.append(string);
     }
-    //***************END LOGAREA INFO*******************//
+    //***************END LOGAREA INFO
+    
+    //*****************ENTERED INFO********************//
+    public void clearEnteredTextArea(){
+        if(enteredTextArea.getText().length() > 0 && enteredTextArea.getText() != null){
+            enteredTextArea.setText(null);
+        }
+    }
+    public String getEnteredText(){
+        if(!enteredTextArea.getText().isEmpty()){
+            return enteredTextArea.getText();
+        }
+        return null;
+    }
+    //*****************END ENTERED INFO********************//
     
     //****************USER LIST***************************//
     public void addListModel(DefaultListModel<String> userListModel){
@@ -275,11 +339,25 @@ class ServerGui extends JFrame{
     protected void portDisconnectButtonListener(ActionListener al){
         portDisconnectButton.addActionListener(al);
     }
+    
+    protected void sendButtonListener(ActionListener al){
+        sendButton.addActionListener(al);
+    }
+    protected void clearButtonListener(ActionListener al){
+        clearButton.addActionListener(al);
+    }
+    protected void deleteLogButtonListener(ActionListener al){
+        deleteLogButton.addActionListener(al);
+    }
+    
     protected void userSelectionListener(ListSelectionListener ll){
         userList.addListSelectionListener(ll);
     }
     protected void kickUserButtonListener(ActionListener al){
         kickUserButton.addActionListener(al);
+    }
+    protected void kickAllButtonListener(ActionListener al){
+        kickAllButton.addActionListener(al);
     }
     //*************END ACTION LISTENERS********************//
     

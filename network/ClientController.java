@@ -57,14 +57,7 @@ class ClientController{
             public void run(){
                 try{
                     
-                    while(client.isChannelConnected()){
-                        
-                        
-                        //TechServer.addUsers();
-                        //List<ConnectedUser> ul = TechServer.staticGetUserList();
-                        
-                        //System.out.println(ul.size());
-                        
+                    while(client.getConnected()){
                         
                         if(!client.getConnected()){
                             try{
@@ -80,12 +73,12 @@ class ClientController{
                         
                        
                     }
-                    if(!client.isChannelConnected()){
+                    if(!client.getConnected()){
                         try{
                             disconnectClient();
                         }catch(Exception ex){System.out.println("R " + ex);}
 
-                        if(!client.isChannelConnected()){
+                        if(!client.getConnected()){
                             System.out.println("Running close ");
                             gui.enableConnectionEditing(true);
                             gui.writeToDisplay("DISCONNECTED" + "\n");
@@ -139,7 +132,7 @@ class ClientController{
                         gui.writeToDisplay(new String(data));
                         
                     }
-                    gui.enableClearScreenButton(!gui.isDisplayEmpty());
+                    gui.enableClearScreenButton(gui.isDisplayEmpty());
                 }
             }
         }).start();
