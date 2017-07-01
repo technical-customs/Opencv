@@ -1,5 +1,6 @@
 package network;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -8,10 +9,17 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.opencv.core.Core;
+import org.opencv.core.Mat;
+import visualdisplay.Display;
 
 class Server{
     final private List<SocketChannel> userList;
@@ -20,9 +28,9 @@ class Server{
     private boolean connected = false;
     private ServerSocketChannel techServer;
     private Selector sSelector;
-
     
     public Server(){
+        System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
         userList = new ArrayList();
     }
     
@@ -185,8 +193,8 @@ class Server{
     private void read(SelectionKey key) throws IOException{
         SocketChannel channel = (SocketChannel) key.channel();
         
-        
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
+        int alloc = 8192;
+        ByteBuffer buffer = ByteBuffer.allocate(alloc);
         int numRead = channel.read(buffer);
         
         if(numRead == -1){
@@ -196,10 +204,12 @@ class Server{
             
             return;
         }
-        byte[] data = new byte[numRead];
-        System.arraycopy(buffer.array(),0,data,0, numRead);
-        System.out.println(channel.toString() + ": " + new String(data));
         
+        if(numRead > 0){
+            byte[] data = new byte[numRead];
+            System.arraycopy(buffer.array(),0,data,0,numRead);
+            System.out.println("FROM " + channel.toString() + ": " + new String(data));
+        }
     }
     private void write(SocketChannel channel, String string) throws IOException{
         
@@ -250,7 +260,7 @@ class Server{
                 while(connected){
                     
                     try{
-                        Thread.sleep(1000);
+                        //Thread.sleep();
                         
                         if(userList.isEmpty()){
                             continue;
@@ -263,7 +273,7 @@ class Server{
                         while(userIter.hasNext()){
                             SocketChannel sc = userIter.next();
                             
-                            if(sc.socket().isClosed()){
+                            if(!sc.isOpen()){
                                 userIter.remove();
                             }else{
                                 //write(sc,"Test");
@@ -271,14 +281,99 @@ class Server{
                             }
                         }
                     }catch(Exception ex){
-                        System.out.println("Search ex: " + ex);
+                        System.err.println("Search ex: " + ex);
+                    }
+                }
+            }
+        }).start();
+    }
+    private void displayUsers(int time){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                //check 
+
+                int x = 0;
+                while(isServerConnected()){
+                    Iterator<SocketChannel> userlistIter = getUserList().iterator();
+                    if(!getUserList().isEmpty()){
+                        try {
+                            if(userlistIter.hasNext()){
+                                System.out.println("User: " + userlistIter.next().toString());
+                            }
+                            Thread.sleep(time*1000);
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                        }
                     }
                 }
             }
         }).start();
     }
     
-    public static void main(String[] args){
+    
+    private void timeout(int time){
+        if(time < 0){
+            return;
+        }
+        if(time == 0){
+            System.out.println("Disconnect");
+            serverDisconnect();
+            System.exit(0);
+        }
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                int x = 0;
+                while(connected){
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                    x++;
+
+                    //System.out.println(x);
+                    if(x == time){
+                        System.out.println("Timeout");
+                        serverDisconnect();
+                        System.exit(0);
+                    }
+                }
+            }
+        }).start();
+    }
+    private void sInput(){
+        new Thread(new Runnable(){
+            @Override
+            public void run() {
+                try{
+                    Scanner scanner = new Scanner(System.in);
+                    
+                    while(scanner.hasNextLine()){
+                        String line = scanner.nextLine();
+                        System.out.println("SERVER: " + line);
+                        
+                        Iterator<SocketChannel> uli = getUserList().iterator();
+                        while(uli.hasNext()){
+                            SocketChannel u = uli.next();
+                            System.out.println("SERVER TO " + u.toString() + ": " + line);
+                            write(u,line);
+                        }
+                              
+                    }
+
+                }catch(Exception ex){System.err.println(ex);}
+            
+            }
+            
+            
+        }).start();
+        
+    }
+    
+    public static void main(String[] args) throws IOException{
+        //Display display = new Display();
         Server server = new Server();
         
         try{
@@ -286,28 +381,9 @@ class Server{
             
             if(server.isServerConnected()){
                 System.out.println("Connected");
-                
-                new Thread(new Runnable(){
-                    @Override
-                    public void run(){
-                        int x = 0;
-                        while(true){
-                            try {
-                                Thread.sleep(1000);
-                            } catch (InterruptedException ex) {
-                                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-                            }
-                            x++;
-                            
-                            //System.out.println(x);
-                            if(x == 30){
-                                System.out.println("Timeout");
-                                server.serverDisconnect();
-                                System.exit(0);
-                            }
-                        }
-                    }
-                }).start();
+                server.sInput();
+                //server.displayUsers(2);
+                server.timeout(45);
             }
         }catch(Exception ex){}
         

@@ -4,10 +4,12 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.Iterator;
+import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-class Client{
+public class Client{
     private SocketChannel channel;
     private boolean connected;
     
@@ -25,7 +27,7 @@ class Client{
             }
         }catch(Exception ex){System.out.println("error connecting");}
     }
-    protected void connectChannel(String ipAddress, int portNumber){
+    public void connectChannel(String ipAddress, int portNumber){
         //new Thread(new Runnable(){
             //@Override
             //public void run(){
@@ -62,19 +64,19 @@ class Client{
         try {
             if(channel.finishConnect()) {
                 connected = true;
-                checkConnection();
+                //checkConnection();
                 read();
                 
                 //Send something to server to server
-                String text = "Yes, Im in You";
-                write(text);
+                //String text = "Yes, Im in You";
+                //write(text);
             }
         } catch (IOException ex) {
         }
         
         
     }
-    protected void disconnectChannel(){
+    public void disconnectChannel(){
         if(connected == false){
             return;
         }
@@ -91,7 +93,7 @@ class Client{
             }catch(Exception ex){}
         }
     }
-    protected boolean isChannelConnected(){
+    public boolean isChannelConnected(){
         if(channel == null){
             return false;
         }
@@ -115,8 +117,9 @@ class Client{
                             try {
                                 channel.write(buf);
                             } catch (IOException ex) {
-                                System.out.println("Write ex: " + ex);
+                                System.err.println("Write ex: " + ex);
                                 disconnectChannel();
+                                //System.exit(0);
                                 return;
                             }
                         }
@@ -130,7 +133,7 @@ class Client{
     }
     
     //R+W
-    public void read() throws IOException{
+    private void read() throws IOException{
         new Thread(new Runnable(){
             @Override
             public void run(){
@@ -142,19 +145,20 @@ class Client{
 
                             if(numRead == -1){
                                 disconnectChannel();
-                                System.out.println("Read Closed: " + channel.toString());
+                                System.err.println("Read Closed: " + channel.toString());
                                 return;
                             }
 
 
                             byte[] data = new byte[numRead];
                             System.arraycopy(buffer.array(),0,data,0, numRead);
-                            System.out.println(channel.toString() + ": " + new String(data));
+                            System.out.println("READ:   " + channel.toString() + ": " + new String(data));
                         }
                     }catch(Exception ex){
-                        System.out.println(ex);
+                        System.err.println("Read Exception: " + ex);
                         disconnectChannel();
-                        return;
+                        break;
+                        //return;
                     }
                     
                 }
@@ -180,11 +184,35 @@ class Client{
         }
     }
     
+    private boolean sent = false;
+    public void writeImage(byte[] ba){
+        if(connected){
+            if(channel != null){
+                sent = false;
+                ByteBuffer buf = ByteBuffer.wrap(ba);
+                buf.put(ba);
+                buf.flip();
+
+                while(buf.hasRemaining()) {
+                    try {
+                        channel.write(buf);
+                        
+                    } catch (IOException ex) {
+                        System.out.println("Write to key ex: " + ex);
+                        return;
+                    }
+                }
+                System.out.println("SENT");
+                sent = true;
+            }
+        }
+    }
+    
     //Getters and Setters
     public boolean getConnected(){
         return connected;
     }
-    protected SocketChannel getUserChannel(){
+    protected SocketChannel getChannel(){
         if(channel != null){
             return channel;
         }else{
@@ -192,6 +220,60 @@ class Client{
         }
     }
             
+    private void cInput(){
+        new Thread(new Runnable(){
+            @Override
+            public void run() {
+                try{
+                    Scanner scanner = new Scanner(System.in);
+                    
+                    while(scanner.hasNextLine()){
+                        String line = scanner.nextLine();
+                        System.out.println("CLIENT: " + line);
+                        write(line);
+                              
+                    }
+
+                }catch(Exception ex){System.err.println(ex);}
+            
+            }
+            
+            
+        }).start();
+        
+    }
+    private void timeout(int time){
+        if(time < 0){
+            return;
+        }
+        if(time == 0){
+            System.out.println("Disconnect");
+            disconnectChannel();
+            System.exit(0);
+        }
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                int x = 0;
+                while(true){
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                    x++;
+
+                    //System.out.println(x);
+                    if(x == time){
+                        System.out.println("Timeout");
+                        disconnectChannel();
+                        System.exit(0);
+                    }
+                }
+            }
+        }).start();
+    }
+    
     public static void main(String[] args){
         Client client = new Client();
         
@@ -200,28 +282,8 @@ class Client{
             
             if(client.isChannelConnected()){
                 System.out.println("Connected");
-                
-                new Thread(new Runnable(){
-                    @Override
-                    public void run(){
-                        int x = 0;
-                        while(true){
-                            try {
-                                Thread.sleep(1000);
-                            } catch (InterruptedException ex) {
-                                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
-                            }
-                            x++;
-                            
-                            //System.out.println(x);
-                            if(x == 30){
-                                System.out.println("Timeout");
-                                //server.serverDisconnect();
-                                System.exit(0);
-                            }
-                        }
-                    }
-                }).start();
+                client.cInput();
+                client.timeout(30);
             }
         }catch(Exception ex){}
     }
