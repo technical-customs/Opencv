@@ -14,6 +14,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Client{
+    private String username = "Anonymous";
     private volatile Set<SocketChannel> userGroup;
     private SocketChannel channel;
     private boolean connected;
@@ -150,7 +151,6 @@ public class Client{
                             if(numRead == -1){
                                 disconnectChannel();
                                 System.err.println("Read Closed: " + channel.toString());
-                                System.exit(0);
                                 return;
                             }
 
@@ -162,7 +162,6 @@ public class Client{
                     }catch(Exception ex){
                         System.err.println("Read Exception: " + ex);
                         disconnectChannel();
-                        System.exit(0);
                         //break;
                         return;
                     }
@@ -201,6 +200,12 @@ public class Client{
         }else{
             return null;
         }
+    }
+    public String getUsername(){
+        return this.username;
+    }
+    public void setUsername(String username){
+        this.username = username;
     }
             
     private void cInput(){
