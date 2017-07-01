@@ -4,12 +4,17 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class Client{
+    private volatile Set<SocketChannel> userGroup;
     private SocketChannel channel;
     private boolean connected;
     
@@ -64,12 +69,9 @@ public class Client{
         try {
             if(channel.finishConnect()) {
                 connected = true;
-                //checkConnection();
                 read();
-                
-                //Send something to server to server
-                //String text = "Yes, Im in You";
-                //write(text);
+                //init here....
+                userGroup = new HashSet<>();
             }
         } catch (IOException ex) {
         }
@@ -90,7 +92,9 @@ public class Client{
                     System.out.println("Closed");
                 }
                 
-            }catch(Exception ex){}
+            }catch(Exception ex){
+                System.err.println("Disconnect ex: " + ex);
+            }
         }
     }
     public boolean isChannelConnected(){
@@ -146,6 +150,7 @@ public class Client{
                             if(numRead == -1){
                                 disconnectChannel();
                                 System.err.println("Read Closed: " + channel.toString());
+                                System.exit(0);
                                 return;
                             }
 
@@ -157,8 +162,9 @@ public class Client{
                     }catch(Exception ex){
                         System.err.println("Read Exception: " + ex);
                         disconnectChannel();
-                        break;
-                        //return;
+                        System.exit(0);
+                        //break;
+                        return;
                     }
                     
                 }
@@ -184,29 +190,6 @@ public class Client{
         }
     }
     
-    private boolean sent = false;
-    public void writeImage(byte[] ba){
-        if(connected){
-            if(channel != null){
-                sent = false;
-                ByteBuffer buf = ByteBuffer.wrap(ba);
-                buf.put(ba);
-                buf.flip();
-
-                while(buf.hasRemaining()) {
-                    try {
-                        channel.write(buf);
-                        
-                    } catch (IOException ex) {
-                        System.out.println("Write to key ex: " + ex);
-                        return;
-                    }
-                }
-                System.out.println("SENT");
-                sent = true;
-            }
-        }
-    }
     
     //Getters and Setters
     public boolean getConnected(){
@@ -274,6 +257,100 @@ public class Client{
         }).start();
     }
     
+    //users
+    public Set getUserGroup(){
+        return userGroup;
+    }
+    private void searchForUser(String user){
+        //ask server for public users list and add from there
+    }
+    private void addUserToGroup(SocketChannel user){
+        userGroup.add(user);
+    }
+    private void removeUserFromeGroup(SocketChannel user){
+        userGroup.remove(user);
+    }
+    private void removeAllUsers(){
+        userGroup.clear();
+    }
+    private void searchForUsers(){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                while(connected){
+                    
+                    try{
+                        //Thread.sleep();
+                        
+                        if(userGroup.isEmpty()){
+                            continue;
+                        }
+                        
+                        Iterator<SocketChannel> userIter = userGroup.iterator();
+
+                        while(userIter.hasNext()){
+                            SocketChannel sc = userIter.next();
+                            
+                            if(!sc.isOpen()){
+                                //user is offline
+                            }else{
+                                //user is online
+                            }
+                        }
+                    }catch(Exception ex){
+                        System.err.println("Search ex: " + ex);
+                    }
+                }
+            }
+        }).start();
+    }
+    private void displayUsers(int time){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                //check 
+
+                int x = 0;
+                while(connected){
+                    Iterator<SocketChannel> usergroupIter = getUserGroup().iterator();
+                    if(!getUserGroup().isEmpty()){
+                        try {
+                            if(usergroupIter.hasNext()){
+                                System.out.println("User: " + usergroupIter.next().toString());
+                            }
+                            Thread.sleep(time*1000);
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                }
+            }
+        }).start();
+    }
+    
+    private boolean sent = false;
+    public void writeImage(byte[] ba){
+        if(connected){
+            if(channel != null){
+                sent = false;
+                ByteBuffer buf = ByteBuffer.wrap(ba);
+                buf.put(ba);
+                buf.flip();
+
+                while(buf.hasRemaining()) {
+                    try {
+                        channel.write(buf);
+                        
+                    } catch (IOException ex) {
+                        System.err.println("Write to key ex: " + ex);
+                        return;
+                    }
+                }
+                System.out.println("SENT");
+                sent = true;
+            }
+        }
+    }
     public static void main(String[] args){
         Client client = new Client();
         
