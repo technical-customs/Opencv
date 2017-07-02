@@ -106,7 +106,7 @@ class ClientController{
         new Thread(new Runnable(){
             @Override
             public void run(){
-                while(client.isChannelConnected()){
+                while(client.getConnected()){
                     
                     
                     //get the buffer from the server
@@ -115,7 +115,7 @@ class ClientController{
                     
                     try {
                         bytesRead = client.getChannel().read(buf2);
-                    } catch (IOException ex) {}
+                    } catch (IOException ex) {System.err.println("Bytes Read Exception: " + ex);}
                     
                     
                     if(bytesRead > 0){
@@ -159,6 +159,15 @@ class ClientController{
             }
         }).start();
     }
+    protected void getReadData(){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                
+            }
+        }).start();
+    }
+    
     //**************ACTION CLASSES****************//
     class ClientOnAction implements ActionListener{
         @Override

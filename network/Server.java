@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.Inet4Address;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -30,31 +31,34 @@ class Server{
     private volatile List<SocketChannel> userList;
     private String ipAddress;
     private int portNumber;
+    private boolean useLocalHost = true;
     private boolean connected = false;
     private ServerSocketChannel techServer;
     private Selector sSelector;
     
     public Server(){
-        
-        
         //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
         userList = new ArrayList<>();
         
         //create log file
         logfile = new File(logfileDir);
         logfile.mkdir();
-        
-        
-        
-        //logfile.mkdir();
     }
     
     //Server
+    public void setLocalHost(boolean activate){
+        useLocalHost = activate;
+    }
     public synchronized void serverConnect(int portnumber){
         
         try{
-            //ipAddress = Inet4Address.getLocalHost().getHostAddress(); 
-            ipAddress = "127.0.0.1";
+            
+            if(useLocalHost){
+                ipAddress = "127.0.0.1";
+            }else{
+                ipAddress = Inet4Address.getLocalHost().getHostAddress();
+            }
+            
             log("IP ADDRESS: " + ipAddress);
             log("PORT NUMBER: " + portnumber);
             
@@ -275,22 +279,22 @@ class Server{
     
     //UserList
     public void closeUser(SocketChannel s){
-        synchronized(getUserList()){
-            Iterator<SocketChannel> userIter = userList.iterator();
         
-            while(userIter.hasNext()){
-                SocketChannel sc = userIter.next();
-                if(s.equals(sc)){
-                    try {
-                        sc.close();
-                    } catch (IOException ex) {
-                        System.err.println("User Close Exception: " + ex);
-                        log("User Close Exception: " + ex);
-                    }
-                }
+        Iterator<SocketChannel> userIter = userList.iterator();
 
+        while(userIter.hasNext()){
+            SocketChannel sc = userIter.next();
+            if(s.equals(sc)){
+                try {
+                    sc.close();
+                } catch (IOException ex) {
+                    System.err.println("User Close Exception: " + ex);
+                    log("User Close Exception: " + ex);
+                }
             }
+
         }
+        
     }
     private void closeAllUsers() throws IOException{
         Iterator<SocketChannel> userIter = userList.iterator();
@@ -397,22 +401,22 @@ class Server{
         if(userList.size() <= 0){
             return;
         }
-        synchronized(getUserList()){
-            try{
-                Iterator<SocketChannel> uli = getUserList().iterator();
-                while(uli.hasNext()){
-                    SocketChannel u = uli.next();
-                    System.out.println("SERVER TO " + u.toString() + ": " + string);
-                    log("SERVER TO " + u.toString() + ": " + string);
-                    write(u,string);
+        
+        try{
+            Iterator<SocketChannel> uli = getUserList().iterator();
+            while(uli.hasNext()){
+                SocketChannel u = uli.next();
+                System.out.println("SERVER TO " + u.toString() + ": " + string);
+                log("SERVER TO " + u.toString() + ": " + string);
+                write(u,string);
 
-                }
-            }catch(Exception ex){
-                System.err.println("Broadcast exception: " + ex);
-                log("Broadcast exception: " + ex);
-                
             }
+        }catch(Exception ex){
+            System.err.println("Broadcast exception: " + ex);
+            log("Broadcast exception: " + ex);
+
         }
+        
     }
     
     

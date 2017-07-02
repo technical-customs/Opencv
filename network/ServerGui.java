@@ -22,6 +22,7 @@ class ServerGui extends JFrame{
     private JButton serverOffButton;
     
     private JPanel searchAndConnectPanel;//gridlayout
+    private JCheckBox localhostCheckbox;
     private JPanel portPanel;
     private JTextField portField;
     private JPanel portConnectPanel;

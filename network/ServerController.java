@@ -101,7 +101,7 @@ class ServerController{
     }
    
     
-    private synchronized boolean isServerConnected(){
+    private synchronized boolean isServerConnect_ed(){
         return server.isServerConnected();
     }
     private synchronized boolean isServerClosed(){
@@ -227,11 +227,12 @@ class ServerController{
         @Override
         public void actionPerformed(ActionEvent ae){
             try{
-                if(isServerConnected()){
+                if(server.getConnected()){
                     disconnectServer();
                 }
             }catch(Exception ex){
-                System.out.println(ex);
+                System.err.println("Server off Exception:" + ex);
+                server.log("Server off Exception:" + ex);
             }finally{
                 gui.writeToDisplay("SERVER CLOSED" + "\n");
                 server.log("SERVER CLOSED");
@@ -253,7 +254,7 @@ class ServerController{
                     try{
                         server.serverConnect(getPortNumber());
 
-                        if(isServerConnected()){
+                        if(server.getConnected()){
                             gui.setTitle(getIpAddress() + " Port: " + getPortNumber());
                             gui.enablePortEditing(false);
                             gui.writeToDisplay("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber() + "\n");
