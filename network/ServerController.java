@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.JFrame;
@@ -99,11 +100,10 @@ class ServerController{
     private synchronized List<SocketChannel> getuserList(){
         return server.getUserList();
     }
-   
-    
-    private synchronized boolean isServerConnect_ed(){
-        return server.isServerConnected();
+    private synchronized Map<SocketChannel,String> getusermap(){
+        return server.getUserMap();
     }
+    
     private synchronized boolean isServerClosed(){
         return server.isServerClosed();
     }
@@ -119,8 +119,8 @@ class ServerController{
                 try{
                     synchronized(getuserList()){
                         while(server.isServerConnected()){
-                            gui.enableUserClick(gui.getUserListModel().size() > 0);
-                            gui.enableKickAllButton(gui.getUserListModel().size() > 0);
+                            //gui.enableUserClick(gui.getUserListModel().size() > 0);
+                            gui.enableKickAllButton(!gui.getUserListModel().isEmpty());
                             
                             if(getuserList().size() == gui.getUserListModel().size()){
                                 //same size
@@ -149,6 +149,44 @@ class ServerController{
             }
         }).start();
     }
+    private synchronized void checkForUsersMap(){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                try{
+                    synchronized(getusermap()){
+                        while(server.isServerConnected()){
+                            //gui.enableUserClick(gui.getUserListModel().size() > 0);
+                            gui.enableKickAllButton(!gui.getUserListModel().isEmpty());
+                            
+                            if(getusermap().size() == gui.getUserListModel().size()){
+                                //same size
+                                
+                                continue;
+                            }
+                            clearUserList();
+                            
+                            //System.out.println("serverUSERS: " + getuserList().toString());
+                            
+                            for(SocketChannel sc: getusermap().keySet()){
+                                gui.addListItem(server.getUserMap().get(sc));
+                            }
+                            
+                            //System.out.println("guiUSERS: " + Arrays.toString(gui.getUserListModel().toArray()));
+                              
+                           
+                            Thread.sleep(60);
+                        }
+                        
+                    }
+                }catch(Exception ex){
+                    System.err.println("User Sync exception: " + ex);
+                    server.log("User Sync exception: " + ex);
+                }
+            }
+        }).start();
+    }
+    
     private void clearUserList(){
         gui.clearListModel();
         gui.getUserList().setModel(gui.getUserListModel());
@@ -195,20 +233,7 @@ class ServerController{
                 }
             }
         }).start();
-    }
-    private void checkForMessages(){
-        new Thread(new Runnable(){
-            @Override
-            public void run(){
-                while(server.getConnected()){
-                    
-                    
-                }
-            }
-        }).start();
-        
-    }
-    
+    } 
     //************END CONTROLLER INFO***********//
     
     
@@ -260,7 +285,7 @@ class ServerController{
                             gui.writeToDisplay("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber() + "\n");
                             server.log("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber());
                             //Init here............
-                            checkForUsers();
+                            checkForUsersMap();
                             gui.enableTextEditing(true);
                             //checkForMessages();
                             logGrabber();
@@ -302,7 +327,7 @@ class ServerController{
         public void actionPerformed(ActionEvent ae) {
             if(!gui.getEnteredText().isEmpty()){
                 server.log("SERVER: " + gui.getEnteredText());
-                server.broadcastMessage(gui.getEnteredText());
+                server.broadcastMessageMap(gui.getEnteredText());
                 
                 
                 gui.clearEnteredTextArea();
@@ -365,8 +390,8 @@ class ServerController{
             String su = gui.getUserList().getSelectedValue();
             
             if(su != null){
-                Iterator<SocketChannel> uli = server.getUserList().iterator();
-                
+                //Iterator<SocketChannel> uli = server.getUserList().iterator();
+                Iterator<SocketChannel> uli = getusermap().keySet().iterator();
                 
                 while(uli.hasNext()){
                     SocketChannel sc = uli.next();
@@ -374,7 +399,7 @@ class ServerController{
                     if(sc.toString().equals(su)){
                         System.out.println("Kick " + sc);
                         server.log("Kick " + sc);
-                        server.closeUser(sc);
+                        server.closeUserMap(sc);
                     }
                 }
             }
@@ -385,7 +410,16 @@ class ServerController{
 
         @Override
         public void actionPerformed(ActionEvent ae) {
-        
+            Iterator<SocketChannel> uli = getusermap().keySet().iterator();
+                
+                while(uli.hasNext()){
+                    SocketChannel sc = uli.next();
+                    
+                    System.out.println("Kick " + sc);
+                    server.log("Kick " + sc);
+                    server.closeUserMap(sc);
+                    
+                }
         }
         
     }

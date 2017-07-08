@@ -16,8 +16,11 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -28,17 +31,19 @@ class Server{
     final private String logfileName = logfileDir + "log.txt";
     final private File logfile;
     
+    private volatile Map<SocketChannel, String> userMap;
     private volatile List<SocketChannel> userList;
     private String ipAddress;
     private int portNumber;
     private boolean useLocalHost = true;
     private boolean connected = false;
-    private ServerSocketChannel techServer;
+    private ServerSocketChannel server;
     private Selector sSelector;
     
     public Server(){
         //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
         userList = new ArrayList<>();
+        userMap = new HashMap<>();
         
         //create log file
         logfile = new File(logfileDir);
@@ -66,17 +71,17 @@ class Server{
             
             sSelector = Selector.open();
             
-            techServer = ServerSocketChannel.open();
-            techServer.configureBlocking(false);
+            server = ServerSocketChannel.open();
+            server.configureBlocking(false);
             
-            if(!techServer.socket().isBound()){
-                techServer.socket().bind(new InetSocketAddress(ipAddress, portnumber));
+            if(!server.socket().isBound()){
+                server.socket().bind(new InetSocketAddress(ipAddress, portnumber));
             }
             
-            SelectionKey socketServerSelectionKey = techServer.register(this.sSelector, SelectionKey.OP_ACCEPT);
+            SelectionKey socketServerSelectionKey = server.register(this.sSelector, SelectionKey.OP_ACCEPT);
             
             
-            if(!techServer.isOpen()){
+            if(!server.isOpen()){
                 System.out.println("ERROR CONNECTING TO SERVER");
                 log("ERROR CONNECTING TO SERVER");
                 return;
@@ -159,7 +164,7 @@ class Server{
                     }
                 }
             }).start();
-            searchForUsers();
+            searchForUsersMap();
             
         }catch(IOException ex){
             System.out.println("Server Connect Exception: " + ex);
@@ -177,8 +182,31 @@ class Server{
         
         try{
             write(channel,"Welcome");
-            addUserToList(channel);
-            log("SOCKET CONNECTED: " + channel.toString());
+            
+            String username;
+            int alloc = 1024;
+            ByteBuffer buffer = ByteBuffer.allocate(alloc);
+            int numRead = channel.read(buffer);
+
+            if(numRead == -1){
+                channel.close();
+                key.cancel();
+                System.out.println("Read Key Closed: " + channel.toString());
+                return;
+            }
+
+            byte[] data = new byte[numRead];
+            System.arraycopy(buffer.array(),0,data,0,numRead);
+            
+            if(new String(data).startsWith("USERNAME=")){
+                username = new String(data).substring("USERNAME=".length());
+                //write(channel,"USERNAME=" + cu.getUsername());
+            }else{
+                username = "USER" + new Random().nextInt(900)+100;
+            }
+            
+            addUserToMap(channel, username);
+            log("SOCKET CONNECTED: " + channel.toString() + "USERNAME: " + username);
         }catch(Exception ex){
             System.out.println("Accepting Ex: " + ex);
             log("Accepting Ex: " + ex);
@@ -194,7 +222,7 @@ class Server{
         
         try{
             //check for clients
-            closeAllUsers();
+            closeAllUsersMap();
             System.out.println("Closed Clients");
             log("Closed Clients");
             
@@ -204,8 +232,8 @@ class Server{
         }
         try{
             
-            techServer.socket().close();
-            techServer.close();
+            server.socket().close();
+            server.close();
             
             System.out.println("Disconnected Server");
             log("Disconnected Server");
@@ -217,10 +245,10 @@ class Server{
         }
     }
     public synchronized boolean isServerConnected(){
-        return techServer.isOpen();
+        return server.isOpen();
     }
     public synchronized boolean isServerClosed(){
-        return !techServer.isOpen();
+        return !server.isOpen();
     }
     public synchronized boolean getConnected(){
         return connected;
@@ -278,12 +306,15 @@ class Server{
     }
     
     //UserList
-    public void closeUser(SocketChannel s){
+    public void closeUser2(SocketChannel s){
         
         Iterator<SocketChannel> userIter = userList.iterator();
 
         while(userIter.hasNext()){
             SocketChannel sc = userIter.next();
+            if(sc == null){
+                continue;
+            }
             if(s.equals(sc)){
                 try {
                     sc.close();
@@ -296,7 +327,29 @@ class Server{
         }
         
     }
-    private void closeAllUsers() throws IOException{
+    public void closeUserMap(SocketChannel s){
+        
+        Iterator<SocketChannel> userIter = userMap.keySet().iterator();
+
+        while(userIter.hasNext()){
+            SocketChannel sc = userIter.next();
+            if(sc == null){
+                continue;
+            }
+            if(s.equals(sc)){
+                try {
+                    sc.close();
+                } catch (IOException ex) {
+                    System.err.println("User Close Exception: " + ex);
+                    log("User Close Exception: " + ex);
+                }
+            }
+
+        }
+        
+    }
+    
+    private void closeAllUsers2() throws IOException{
         Iterator<SocketChannel> userIter = userList.iterator();
         
         while(userIter.hasNext()){
@@ -304,17 +357,41 @@ class Server{
             sc.close();
         }
     }
+    private void closeAllUsersMap() throws IOException{
+        Iterator<SocketChannel> userIter = userMap.keySet().iterator();
+        
+        while(userIter.hasNext()){
+            SocketChannel sc = userIter.next();
+            sc.close();
+        }
+    }
+    
     public List<SocketChannel> getUserList(){
         return userList;
     }
-    private void addUserToList(SocketChannel channel){
+    public Map <SocketChannel, String> getUserMap(){
+        return this.userMap;
+    }
+    
+    private void addUserToList2(SocketChannel channel){
         if(userList.contains(channel)){
             return;
         }
         userList.add(channel);
         log("CHANNEL ADDED TO LIST: " + channel.toString());
     }
-    private void searchForUsers(){
+    private void addUserToMap(SocketChannel channel, String username){
+        if(channel == null || username == null || username.isEmpty()){
+            return;
+        }
+        if(userMap.containsKey(channel)){
+            return;
+        }
+        userMap.put(channel, username);
+        log("CHANNEL ADDED TO MAP: " + channel.toString() + " USERNAME: " + username);
+    }
+    
+    private void searchForUsers2(){
         new Thread(new Runnable(){
             @Override
             public void run(){
@@ -348,19 +425,78 @@ class Server{
             }
         }).start();
     }
-    private void displayUsers(int time){
+    private void searchForUsersMap(){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                while(connected){
+                    
+                    try{
+                        //Thread.sleep();
+                        
+                        if(userMap.isEmpty()){
+                            continue;
+                        }
+                        
+                        Iterator<SocketChannel> userIter = userMap.keySet().iterator();
+                        
+                        //System.out.println("Users: ");
+
+                        while(userIter.hasNext()){
+                            SocketChannel sc = userIter.next();
+                            
+                            if(!sc.isOpen()){
+                                userIter.remove();
+                            }else{
+                                //write(sc,"Test");
+                                //System.out.println(sc.toString());
+                            }
+                        }
+                    }catch(Exception ex){
+                        System.err.println("Search ex: " + ex);
+                    }
+                }
+            }
+        }).start();
+    }
+    
+    private void displayUsers2(int time){
         new Thread(new Runnable(){
             @Override
             public void run(){
                 //check 
 
                 int x = 0;
-                while(isServerConnected()){
-                    Iterator<SocketChannel> userlistIter = getUserList().iterator();
-                    if(!getUserList().isEmpty()){
+                while(connected){
+                    Iterator<SocketChannel> userlistIter = userList.iterator();
+                    if(!userList.isEmpty()){
                         try {
                             if(userlistIter.hasNext()){
                                 System.out.println("User: " + userlistIter.next().toString());
+                            }
+                            Thread.sleep(time*1000);
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                }
+            }
+        }).start();
+    }
+    private void displayUsersMap(int time){
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                //check 
+
+                int x = 0;
+                while(connected){
+                    Iterator<SocketChannel> userIter = userMap.keySet().iterator();
+                    if(!userMap.isEmpty()){
+                        try {
+                            if(userIter.hasNext()){
+                                SocketChannel sc = userIter.next();
+                                System.out.println("User: " + sc.toString() + "Username: " + userMap.get(sc));
                             }
                             Thread.sleep(time*1000);
                         } catch (InterruptedException ex) {
@@ -397,18 +533,40 @@ class Server{
         return null;
     }
     
-    protected void broadcastMessage(String string){
+    
+    protected void broadcastMessage2(String string){
         if(userList.size() <= 0){
             return;
         }
         
         try{
-            Iterator<SocketChannel> uli = getUserList().iterator();
+            Iterator<SocketChannel> uli = userList.iterator();
             while(uli.hasNext()){
                 SocketChannel u = uli.next();
                 System.out.println("SERVER TO " + u.toString() + ": " + string);
                 log("SERVER TO " + u.toString() + ": " + string);
-                write(u,string);
+                write(u,"SERVER: " + string);
+
+            }
+        }catch(Exception ex){
+            System.err.println("Broadcast exception: " + ex);
+            log("Broadcast exception: " + ex);
+
+        }
+        
+    }
+    protected void broadcastMessageMap(String string){
+        if(userMap == null || userMap.isEmpty()){
+            return;
+        }
+        
+        try{
+            Iterator<SocketChannel> uli = userMap.keySet().iterator();
+            while(uli.hasNext()){
+                SocketChannel u = uli.next();
+                System.out.println("SERVER TO " + u.toString() + ": " + string);
+                log("SERVER TO " + u.toString() + ": " + string);
+                write(u,"SERVER: " + string);
 
             }
         }catch(Exception ex){
@@ -465,7 +623,7 @@ class Server{
                         System.out.println("SERVER: " + line);
                         log("SERVER: " + line);
                         
-                        broadcastMessage(line);
+                        broadcastMessageMap(line);
                               
                     }
 

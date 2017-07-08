@@ -9,6 +9,8 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 class ClientController{
     
     private final Client client;
@@ -64,7 +66,7 @@ class ClientController{
                                 disconnectClient();
                             }catch(Exception ex){System.out.println("R " + ex);}
 
-                            if(!client.isChannelConnected()){
+                            if(!client.getConnected()){
                                 System.out.println("Running close ");
                                 gui.enableConnectionEditing(true);
                                 gui.writeToDisplay("DISCONNECTED" + "\n");
@@ -94,6 +96,8 @@ class ClientController{
     }
     private void disconnectClient(){
         client.disconnectChannel();
+        gui.enableConnectionEditing(true);
+        gui.writeToDisplay("DISCONNECTED" + "\n");
     }
     
     protected void writeToClientDisplay(){
@@ -107,7 +111,7 @@ class ClientController{
             @Override
             public void run(){
                 while(client.getConnected()){
-                    
+                    gui.enableClearScreenButton(!gui.isDisplayEmpty());
                     
                     //get the buffer from the server
                     ByteBuffer buf2 = ByteBuffer.allocate(1024);
@@ -124,7 +128,7 @@ class ClientController{
                         
                         
                         
-                        if(new String(data).contains("USERNAME=")){
+                        if(new String(data).startsWith("USERNAME=")){
                             String username = new String(data).substring("USERNAME=".length());
                             client.setUsername(username);
                         } 
@@ -132,11 +136,12 @@ class ClientController{
                         gui.writeToDisplay(new String(data));
                         
                     }
-                    gui.enableClearScreenButton(gui.isDisplayEmpty());
+                    
                 }
             }
         }).start();
     }
+    
     protected void readFromClient(String string){
         Charset charset = Charset.forName("ISO-8859-1");
         CharsetEncoder encoder = charset.newEncoder();
@@ -154,19 +159,55 @@ class ClientController{
                         client.write(string);
                     }catch(Exception ex){}
                     
-                    gui.addToDisplay("\n");
+                    //gui.addToDisplay("\n");
                 }
             }
         }).start();
     }
-    protected void getReadData(){
+    private void read() throws IOException{
         new Thread(new Runnable(){
             @Override
             public void run(){
-                
+                while(client.getConnected()){
+                    try{
+                        if(client.getChannel() != null){
+                            ByteBuffer buffer = ByteBuffer.allocate(1024);
+                            int numRead = client.getChannel().read(buffer);
+
+                            if(numRead == -1){
+                                //disconnect
+                                client.disconnectChannel();
+                                System.err.println("Read Closed: " + client.getChannel().toString());
+                                return;
+                            }
+
+
+                            byte[] data = new byte[numRead];
+                            System.arraycopy(buffer.array(),0,data,0, numRead);
+                            
+                            client.readData.setLength(0);
+                            client.readData.append(data);
+                            //send string through pipe
+                            System.out.println("READ:   " + client.getChannel().toString() + ": " + new String(data));
+                            
+                            if(new String(data).startsWith("USERNAME=")){
+                                String username = new String(data).substring("USERNAME=".length());
+                                client.setUsername(username);
+                            } 
+
+                            gui.writeToDisplay(new String(data));
+                        }
+                    }catch(Exception ex){
+                        System.err.println("Read Exception: " + ex);
+                        client.disconnectChannel();
+                        return;
+                    }
+                    
+                }
             }
         }).start();
     }
+   
     
     //**************ACTION CLASSES****************//
     class ClientOnAction implements ActionListener{
@@ -212,15 +253,19 @@ class ClientController{
                         client.connectChannel(getIpAddress(), getPortNumber());
                         
                         if(client.isChannelConnected()){
-                            client.write("USERNAME="+client.getUsername());
-                            
-                            gui.enableConnectionEditing(false);
-                            gui.writeToDisplay("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber() + "\n");
-                           
-                            gui.clearDisplay();
-                            
-                            writeToClientDisplay();
-                            //checkServerConnection(client.getUserChannel());
+                            try {
+                                client.write("USERNAME="+client.getUsername());
+                                
+                                gui.enableConnectionEditing(false);
+                                gui.writeToDisplay("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber() + "\n");
+                                
+                                gui.clearDisplay();
+                                
+                                read();
+                                checkServerConnection(client.getChannel());
+                            } catch (IOException ex) {
+                                Logger.getLogger(ClientController.class.getName()).log(Level.SEVERE, null, ex);
+                            }
                         }
                     }
                 }).start();

@@ -70,7 +70,7 @@ public class Client{
         try {
             if(channel.finishConnect()) {
                 connected = true;
-                read();
+                //read();
                 //init here....
                 userGroup = new HashSet<>();
             }
