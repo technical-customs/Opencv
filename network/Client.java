@@ -138,10 +138,7 @@ public class Client{
     }
     
     //R+W
-    public StringBuilder readData = new StringBuilder();
-    public synchronized String getReadData(){
-        return readData.toString();
-    }
+    
     private void read() throws IOException{
         new Thread(new Runnable(){
             @Override
@@ -161,9 +158,7 @@ public class Client{
 
                             byte[] data = new byte[numRead];
                             System.arraycopy(buffer.array(),0,data,0, numRead);
-                            
-                            readData.setLength(0);
-                            readData.append(data);
+                           
                             //send string through pipe
                             System.out.println("READ:   " + channel.toString() + ": " + new String(data));
                         }
@@ -188,10 +183,12 @@ public class Client{
                     try {
                         channel.write(buf);
                     } catch (IOException ex) {
-                        System.out.println("Write to key ex: " + ex);
+                        System.err.println("Write to key ex: " + ex);
                         return;
                     }
-                }    
+                }
+                
+                buf.clear();
             }
         }
     }

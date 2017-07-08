@@ -100,48 +100,6 @@ class ClientController{
         gui.writeToDisplay("DISCONNECTED" + "\n");
     }
     
-    protected void writeToClientDisplay(){
-        Charset charset = Charset.forName("ISO-8859-1");
-        CharsetEncoder encoder = charset.newEncoder();
-        CharsetDecoder decoder = charset.newDecoder();
-        
-        
-        
-        new Thread(new Runnable(){
-            @Override
-            public void run(){
-                while(client.getConnected()){
-                    gui.enableClearScreenButton(!gui.isDisplayEmpty());
-                    
-                    //get the buffer from the server
-                    ByteBuffer buf2 = ByteBuffer.allocate(1024);
-                    int bytesRead = -1;
-                    
-                    try {
-                        bytesRead = client.getChannel().read(buf2);
-                    } catch (IOException ex) {System.err.println("Bytes Read Exception: " + ex);}
-                    
-                    
-                    if(bytesRead > 0){
-                        byte[] data = new byte[bytesRead];
-                        System.arraycopy(buf2.array(),0,data,0, bytesRead);
-                        
-                        
-                        
-                        if(new String(data).startsWith("USERNAME=")){
-                            String username = new String(data).substring("USERNAME=".length());
-                            client.setUsername(username);
-                        } 
-                        
-                        gui.writeToDisplay(new String(data));
-                        
-                    }
-                    
-                }
-            }
-        }).start();
-    }
-    
     protected void readFromClient(String string){
         Charset charset = Charset.forName("ISO-8859-1");
         CharsetEncoder encoder = charset.newEncoder();
@@ -176,7 +134,7 @@ class ClientController{
 
                             if(numRead == -1){
                                 //disconnect
-                                client.disconnectChannel();
+                                disconnectClient();
                                 System.err.println("Read Closed: " + client.getChannel().toString());
                                 return;
                             }
@@ -184,22 +142,20 @@ class ClientController{
 
                             byte[] data = new byte[numRead];
                             System.arraycopy(buffer.array(),0,data,0, numRead);
+                            String string = new String(data);
                             
-                            client.readData.setLength(0);
-                            client.readData.append(data);
-                            //send string through pipe
-                            System.out.println("READ:   " + client.getChannel().toString() + ": " + new String(data));
+                            System.out.println("READ:   " + client.getChannel().toString() + ": " + string);
                             
-                            if(new String(data).startsWith("USERNAME=")){
+                            if(string.startsWith("USERNAME=")){
                                 String username = new String(data).substring("USERNAME=".length());
                                 client.setUsername(username);
                             } 
 
-                            gui.writeToDisplay(new String(data));
+                            gui.writeToDisplay(string);
                         }
                     }catch(Exception ex){
                         System.err.println("Read Exception: " + ex);
-                        client.disconnectChannel();
+                        disconnectClient();
                         return;
                     }
                     
@@ -230,9 +186,9 @@ class ClientController{
     class ClientOffAction implements ActionListener{
         @Override
         public void actionPerformed(ActionEvent ae){
-            if(client.isChannelConnected()){
+            if(client.getConnected()){
                 try{
-                    client.disconnectChannel();
+                    disconnectClient();
                 }catch(Exception ex){}
                 
             }
@@ -253,6 +209,7 @@ class ClientController{
                         client.connectChannel(getIpAddress(), getPortNumber());
                         
                         if(client.isChannelConnected()){
+                            
                             try {
                                 client.write("USERNAME="+client.getUsername());
                                 
@@ -262,7 +219,7 @@ class ClientController{
                                 gui.clearDisplay();
                                 
                                 read();
-                                checkServerConnection(client.getChannel());
+                                
                             } catch (IOException ex) {
                                 Logger.getLogger(ClientController.class.getName()).log(Level.SEVERE, null, ex);
                             }
