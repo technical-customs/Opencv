@@ -1,6 +1,5 @@
 package network;
 
-
 import java.awt.event.*;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -97,9 +96,6 @@ class ServerController{
         return server.getServerAddress();
     }
     
-    private synchronized List<SocketChannel> getuserList(){
-        return server.getUserList();
-    }
     private synchronized Map<SocketChannel,String> getusermap(){
         return server.getUserMap();
     }
@@ -111,45 +107,7 @@ class ServerController{
         server.serverDisconnect();
     }
     
-    
     private synchronized void checkForUsers(){
-        new Thread(new Runnable(){
-            @Override
-            public void run(){
-                try{
-                    synchronized(getuserList()){
-                        while(server.isServerConnected()){
-                            //gui.enableUserClick(gui.getUserListModel().size() > 0);
-                            gui.enableKickAllButton(!gui.getUserListModel().isEmpty());
-                            
-                            if(getuserList().size() == gui.getUserListModel().size()){
-                                //same size
-                                
-                                continue;
-                            }
-                            clearUserList();
-                            
-                            //System.out.println("serverUSERS: " + getuserList().toString());
-                            
-                            for(SocketChannel sc: getuserList()){
-                                gui.addListItem(sc.toString());
-                            }
-                            
-                            //System.out.println("guiUSERS: " + Arrays.toString(gui.getUserListModel().toArray()));
-                              
-                           
-                            Thread.sleep(60);
-                        }
-                        
-                    }
-                }catch(Exception ex){
-                    System.err.println("User Sync exception: " + ex);
-                    server.log("User Sync exception: " + ex);
-                }
-            }
-        }).start();
-    }
-    private synchronized void checkForUsersMap(){
         new Thread(new Runnable(){
             @Override
             public void run(){
@@ -196,6 +154,7 @@ class ServerController{
     //**********END SERVER TO GUI************//
     
     //****************CONTROLLER INFO***********//
+    
     private void logGrabber(){
         new Thread(new Runnable(){
             @Override
@@ -236,13 +195,11 @@ class ServerController{
     } 
     //************END CONTROLLER INFO***********//
     
-    
-    
-    
     //**************ACTION CLASSES****************//
     class ServerOnAction implements ActionListener{
         @Override
         public void actionPerformed(ActionEvent ae){
+            logGrabber();
             gui.enableAll();
             gui.writeToDisplay("SERVER INITIATED" + "\n");
             server.log("SERVER INITIATED");
@@ -262,11 +219,8 @@ class ServerController{
                 gui.writeToDisplay("SERVER CLOSED" + "\n");
                 server.log("SERVER CLOSED");
                 gui.setTitle("-");
-                //clearUserList();
                 gui.disableAll();
             }
-            
-            
         }
     }
     class PortConnectAction implements ActionListener{
@@ -284,11 +238,10 @@ class ServerController{
                             gui.enablePortEditing(false);
                             gui.writeToDisplay("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber() + "\n");
                             server.log("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber());
+                            
                             //Init here............
-                            checkForUsersMap();
+                            checkForUsers();
                             gui.enableTextEditing(true);
-                            //checkForMessages();
-                            logGrabber();
                     }
                     }catch(Exception ex){
                         System.err.println("Server Connect ex: " + ex);
@@ -296,7 +249,6 @@ class ServerController{
                     }
                 }
             }).start();
-            
         }
     }
     class PortDisconnectAction implements ActionListener{
@@ -320,30 +272,24 @@ class ServerController{
             }
         }
     }
-    
     class SendButtonAction implements ActionListener{
 
         @Override
         public void actionPerformed(ActionEvent ae) {
             if(!gui.getEnteredText().isEmpty()){
                 server.log("SERVER: " + gui.getEnteredText());
-                server.broadcastMessageMap(gui.getEnteredText());
-                
-                
+                server.broadcastMessage(gui.getEnteredText());
                 gui.clearEnteredTextArea();
             }
         }
-        
     }
     class ClearButtonAction implements ActionListener{
-
         @Override
         public void actionPerformed(ActionEvent ae) {
             if(gui.getEnteredText() != null){
                 gui.clearEnteredTextArea();
             }
         }
-        
     }
     class DeleteLogButtonAction implements ActionListener{
 
@@ -353,7 +299,6 @@ class ServerController{
         }
         
     }
-    
     class UserSelectAction implements ListSelectionListener{
 
         @Override
@@ -399,7 +344,7 @@ class ServerController{
                     if(sc.toString().equals(su)){
                         System.out.println("Kick " + sc);
                         server.log("Kick " + sc);
-                        server.closeUserMap(sc);
+                        server.closeUser(sc);
                     }
                 }
             }
@@ -417,8 +362,7 @@ class ServerController{
                     
                     System.out.println("Kick " + sc);
                     server.log("Kick " + sc);
-                    server.closeUserMap(sc);
-                    
+                    server.closeUser(sc);
                 }
         }
         

@@ -155,11 +155,9 @@ public class Client{
                                 return;
                             }
 
-
                             byte[] data = new byte[numRead];
                             System.arraycopy(buffer.array(),0,data,0, numRead);
-                           
-                            //send string through pipe
+                          
                             System.out.println("READ:   " + channel.toString() + ": " + new String(data));
                         }
                     }catch(Exception ex){
@@ -167,7 +165,6 @@ public class Client{
                         disconnectChannel();
                         return;
                     }
-                    
                 }
             }
         }).start();
@@ -255,7 +252,6 @@ public class Client{
                     }
                     x++;
 
-                    //System.out.println(x);
                     if(x == time){
                         System.out.println("Timeout");
                         disconnectChannel();
