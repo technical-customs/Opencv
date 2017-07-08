@@ -181,13 +181,14 @@ class Server{
         
         
         try{
-            write(channel,"Welcome");
+            
             
             String username;
-            int alloc = 1024;
+            int alloc = 2048;
             ByteBuffer buffer = ByteBuffer.allocate(alloc);
             int numRead = channel.read(buffer);
-
+            
+            
             if(numRead == -1){
                 channel.close();
                 key.cancel();
@@ -202,11 +203,14 @@ class Server{
                 username = new String(data).substring("USERNAME=".length());
                 //write(channel,"USERNAME=" + cu.getUsername());
             }else{
-                username = "USER" + new Random().nextInt(900)+100;
+                username = "USER" + (new Random().nextInt(900)+100);
             }
             
+            write(channel,"Welcome " + username);
             addUserToMap(channel, username);
-            log("SOCKET CONNECTED: " + channel.toString() + "USERNAME: " + username);
+            
+            buffer.clear();
+            
         }catch(Exception ex){
             System.out.println("Accepting Ex: " + ex);
             log("Accepting Ex: " + ex);
@@ -276,8 +280,8 @@ class Server{
         if(numRead > 0){
             byte[] data = new byte[numRead];
             System.arraycopy(buffer.array(),0,data,0,numRead);
-            System.out.println("FROM " + channel.toString() + ": " + new String(data));
-            log("FROM " + channel.toString() + ": " + new String(data));
+            System.out.println("FROM " + userMap.get(channel) + ": " + new String(data));
+            log("FROM " + userMap.get(channel) + ": " + new String(data));
         }
     }
     private void write(SocketChannel channel, String string) throws IOException{
@@ -373,7 +377,7 @@ class Server{
         return this.userMap;
     }
     
-    private void addUserToList2(SocketChannel channel){
+    private void addUserToList(SocketChannel channel){
         if(userList.contains(channel)){
             return;
         }
@@ -564,8 +568,8 @@ class Server{
             Iterator<SocketChannel> uli = userMap.keySet().iterator();
             while(uli.hasNext()){
                 SocketChannel u = uli.next();
-                System.out.println("SERVER TO " + u.toString() + ": " + string);
-                log("SERVER TO " + u.toString() + ": " + string);
+                System.out.println("SERVER TO " + userMap.get(u) + ": " + string);
+                log("SERVER TO " + userMap.get(u) + ": " + string);
                 write(u,"SERVER: " + string);
 
             }

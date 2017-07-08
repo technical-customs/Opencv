@@ -75,7 +75,7 @@ class ClientGui extends JFrame{
     }
     
     private void setupGUI(){
-        this.setTitle("TechClient");
+        this.setTitle("Client");
         this.setSize(GUIWIDTH, GUIHEIGHT);
         this.setResizable(false);
         this.addWindowListener(new WindowAdapter(){
