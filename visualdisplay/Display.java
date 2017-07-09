@@ -27,6 +27,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import network.Client;
 import org.opencv.core.Core;
 import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfRect;
@@ -52,6 +53,7 @@ public class Display extends JPanel{
     private JButton quitButton;
     private JTextField folderSaveField;
     
+    
     //Camera
     private boolean timer = false;
     private volatile int ttime = 0;
@@ -64,6 +66,8 @@ public class Display extends JPanel{
     private final MatOfByte mem;
     private final List circles;
     
+    //Network
+    private Client client;
     public Display() throws IOException{
         if(Files.notExists(picLocationPath)){
             System.out.println("Making folder");
@@ -114,7 +118,8 @@ public class Display extends JPanel{
         //Draw options in top left corner
         g2.setColor(Color.yellow);
         if(frameGrabber.getStreamOn()){
-            g2.drawString("Options: P - Process, S - Save, T - Timer, O - Open Stream, E - Exit Stream, Q - Quit",0,fontSize);
+            g2.drawString("Options: P - Process, S - Save, T - Timer, C - Connect, D - Disconnect, "
+                    + "O - Open Stream, E - Exit Stream, Q - Quit",0,fontSize);
             
             if(imageProcessMenu){
                 g2.drawString("Process Options: B - Blur, Gray - G",0,(fontSize*2)+2 );
@@ -153,6 +158,7 @@ public class Display extends JPanel{
                     //write file
                 }
                 */
+                disconnectNetwork();
                 frameGrabber.stop();
                 System.exit(0);
             }
@@ -160,7 +166,7 @@ public class Display extends JPanel{
         frame.addKeyListener(new KeyAdapter(){
             @Override
             public void keyTyped(KeyEvent ke){
-                //options: S-save, E-exit stream, O-open stream, Q-quit
+                //options: S-save, E-exit stream, P-process, C-connect, D-disconnect, O-open stream, Q-quit
                 
                 int keyCode = Character.toUpperCase(ke.getKeyChar());
                 
@@ -222,11 +228,13 @@ public class Display extends JPanel{
                 }
                 if(keyCode == (KeyEvent.VK_E)){
                     if(frameGrabber.getStreamOn()){
+                        disconnectNetwork();
                         frameGrabber.stop();
                     }
                 }
                 if(keyCode == (KeyEvent.VK_Q)){
                     if(frameGrabber.getStreamOn()){
+                        disconnectNetwork();
                         frameGrabber.stop();
                     }
                     System.exit(0);
@@ -237,6 +245,47 @@ public class Display extends JPanel{
                         imageProcessMenu = frameGrabber.getImageProcess();
                     }
                 }
+                
+                if(keyCode == (KeyEvent.VK_C)){
+                    if(frameGrabber.getStreamOn()){
+                        String ip = JOptionPane.showInputDialog(null,"Enter IP:",null,1);
+                    
+                        if(ip == null || ip.isEmpty() || ip.contains(" ")){
+                            return;
+                        }
+
+                        String port = JOptionPane.showInputDialog(null,"Enter Port# 1024 - 65535:",null,1);
+                    
+                        if(port == null || port.isEmpty() || port.contains(" ")){
+                            return;
+                        }
+
+                        int streamport;
+
+                        try{
+                            streamport = Integer.parseInt(port);
+
+                            if(streamport < 1024 || streamport > 65535){
+                                return;
+                            }
+                            System.out.println("STARTING STREAM " + streamport);
+                            frameGrabber.start(streamport);
+
+                        }catch(Exception ex){
+                            System.out.println("Stream Device Not Available");
+                            return;
+                        }
+                        
+                        connectToNetwork(ip,streamport);
+                    }
+                }
+                
+                if(keyCode == (KeyEvent.VK_D)){
+                    if(frameGrabber.getStreamOn()){
+                        disconnectNetwork();
+                    }
+                }
+                
                 
                 //image process keys: B - Blur, G - Gray, E - Eye detect, going to add slide scale
                 if(keyCode == (KeyEvent.VK_B)){
@@ -253,17 +302,10 @@ public class Display extends JPanel{
                         }
                     }
                 }
-                if(keyCode == (KeyEvent.VK_E)){
+                if(keyCode == (KeyEvent.VK_1)){
                     if(frameGrabber.getStreamOn()){
                         if(imageProcessMenu){
-                            
-                        }
-                    }
-                }
-                if(keyCode == (KeyEvent.VK_F)){
-                    if(frameGrabber.getStreamOn()){
-                        if(imageProcessMenu){
-                            
+                            frameGrabber.setGrayScale(!frameGrabber.getGrayScale());
                         }
                     }
                 }
@@ -294,6 +336,9 @@ public class Display extends JPanel{
         return picLocationPath + "/" + picName + ext;
     }
     
+    public FrameGrabber getFrameGrabber(){
+        return frameGrabber;
+    }
     private void timerSave(int time){
         if(!frameGrabber.getStreamOn()){
             return;
@@ -336,6 +381,63 @@ public class Display extends JPanel{
             Imgcodecs.imwrite(getSavePath(picName, picExt), frameGrabber.getMat());
         }
     }
+    
+    //network
+    public int safeLongToInt(long l) {
+        if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(l + " cannot be cast to int without changing its value.");
+        }
+        return (int) l;
+    }
+    
+    
+    public void connectToNetwork(String ip, int port){
+        if(!frameGrabber.getStreamOn()){
+            return;
+        }
+        new Thread(new Runnable(){
+            @Override
+            public void run(){
+                client = new Client();
+                client.connectChannel(ip, port);
+                
+                if(client.getConnected()){
+                    System.out.println("Connection Established");
+
+                    while(client.getConnected()){
+                        try{
+                            Thread.sleep(3000);
+                            
+                            byte[] bytes = frameGrabber.matToBytes(frameGrabber.getMat());
+                            
+                            System.out.println("Image: " + bytes.length);
+                            client.writeImage(bytes);
+                            
+                            if(client.sent){
+                                disconnectNetwork();
+                            }
+                            
+                        }catch(Exception ex){
+                            System.out.println(ex);
+                        }
+                    }
+                }
+                
+            }
+        }).start();
+        
+    }
+    public void disconnectNetwork(){
+        if(!frameGrabber.getStreamOn()){
+            return;
+        }
+        if(client != null){
+            if(client.getConnected()){
+                client.disconnectChannel();
+            }
+        }
+    }
+    
     public static void main(String[] args){
         Display display;
         try {

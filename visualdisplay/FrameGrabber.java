@@ -21,20 +21,18 @@ import org.opencv.videoio.VideoCapture;
     returns the data from webcam
 
 */
-class FrameGrabber implements Runnable{
+final public class FrameGrabber implements Runnable{
     private int DEVICENUMBER;
     private volatile boolean streamon; 
     private VideoCapture stream; //camera
     private Mat mat; //mat of stream
     private Dimension streamDim; //dimension of mat
     private boolean processImage = false;
-    private boolean blur = false, grayScale = false;
+    private boolean blur = false, grayScale = false, faceDetect = false, moveDetect = false;
     private volatile BufferedImage bi;
     
     public FrameGrabber(){
         System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
-        
-        stream = new VideoCapture();
     }
     
     public FrameGrabber(int devicenumber){
@@ -72,6 +70,7 @@ class FrameGrabber implements Runnable{
                     imageProcessing();
                 }
                 
+                
                 bi = matToBufImg(mat); //convert mat to image and store
                 
             }catch(Exception ex){
@@ -83,7 +82,7 @@ class FrameGrabber implements Runnable{
         if(streamon){ //returns because stream is started
             return;
         }
-        
+        stream = new VideoCapture();
         stream.open(DEVICENUMBER);
         if(!stream.isOpened()){
             System.out.println("Could not open stream");
@@ -138,6 +137,27 @@ class FrameGrabber implements Runnable{
         this.processImage = processImage;
     }
    
+    public byte[] matToBytes(Mat m){
+        try {
+            MatOfByte mob = new MatOfByte();
+            Imgcodecs.imencode(".jpg", m, mob);
+            byte[] bytes = mob.toArray();
+            int type = BufferedImage.TYPE_BYTE_GRAY;
+            
+            if (m.channels() > 1) {
+                type = BufferedImage.TYPE_3BYTE_BGR;
+            }
+            int bufferSize = m.channels()*m.cols()*m.rows();
+            byte [] b = new byte[bufferSize];
+            m.get(0,0,b); // get all the pixels
+            BufferedImage image = new BufferedImage(m.cols(),m.rows(), type);
+            
+            return ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+            
+        } catch (Exception ex) {
+            return null;
+        }
+    }
     private BufferedImage matToBufImg(Mat m){
         try {
             MatOfByte mob = new MatOfByte();
@@ -181,6 +201,7 @@ class FrameGrabber implements Runnable{
             }
             this.bi = matToBufImg(m);
             streamDim.setSize(m.cols(),m.rows());
+            streamon = true;
         }catch(Exception ex){
             System.out.println(ex);
         }
@@ -191,6 +212,7 @@ class FrameGrabber implements Runnable{
                 return;
             }
             loadPicture(Imgcodecs.imread(url));
+            
         }catch(Exception ex){
             System.out.println(ex);
         }
@@ -207,6 +229,12 @@ class FrameGrabber implements Runnable{
         if(grayScale){
             Imgproc.cvtColor(mat, mat, Imgproc.COLOR_BGR2GRAY); //convert cam mat to gray scale
         }
+        if(faceDetect){
+            
+        }
+        if(moveDetect){
+            
+        }
         
         
     }
@@ -221,5 +249,11 @@ class FrameGrabber implements Runnable{
     }
     public void setGrayScale(boolean grayScale){
         this.grayScale = grayScale;
+    }
+    public boolean getFaceDetect(){
+        return grayScale;
+    }
+    public void setFaceDetect(boolean faceDetect){
+        this.faceDetect = faceDetect;
     }
 }
