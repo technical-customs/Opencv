@@ -114,7 +114,7 @@ class ServerController{
                 try{
                     synchronized(getusermap()){
                         while(server.isServerConnected()){
-                            //gui.enableUserClick(gui.getUserListModel().size() > 0);
+                            gui.enableUserClick(gui.getUserListModel().size() > 0);
                             gui.enableKickAllButton(!gui.getUserListModel().isEmpty());
                             
                             if(getusermap().size() == gui.getUserListModel().size()){
@@ -124,16 +124,10 @@ class ServerController{
                             }
                             clearUserList();
                             
-                            //System.out.println("serverUSERS: " + getuserList().toString());
-                            
                             for(SocketChannel sc: getusermap().keySet()){
                                 gui.addListItem(server.getUserMap().get(sc));
                             }
-                            
-                            //System.out.println("guiUSERS: " + Arrays.toString(gui.getUserListModel().toArray()));
-                              
-                           
-                            Thread.sleep(60);
+                            //Thread.sleep(60);
                         }
                         
                     }
@@ -159,6 +153,13 @@ class ServerController{
         new Thread(new Runnable(){
             @Override
             public void run(){
+                if(!server.getConnected()){
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(ServerController.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
                 BufferedReader br = null;
                 try {
                     //clear Screen
@@ -166,7 +167,7 @@ class ServerController{
                     br = new BufferedReader(new InputStreamReader(new FileInputStream(server.getLogFile())));
                     System.out.println("LOG FILE: " + server.getLogFile());
                     
-                    while(server.isServerConnected()){
+                    while(server.getConnected()){
                         String line = br.readLine();
                         if(line != null){
                             gui.writeToDisplay(line);
@@ -199,7 +200,7 @@ class ServerController{
     class ServerOnAction implements ActionListener{
         @Override
         public void actionPerformed(ActionEvent ae){
-            logGrabber();
+            
             gui.enableAll();
             gui.writeToDisplay("SERVER INITIATED" + "\n");
             server.log("SERVER INITIATED");
@@ -240,6 +241,7 @@ class ServerController{
                             server.log("CONNECTED. LISTENING ON " + getIpAddress() + " Port: " + getPortNumber());
                             
                             //Init here............
+                            logGrabber();
                             checkForUsers();
                             gui.enableTextEditing(true);
                     }
@@ -341,10 +343,14 @@ class ServerController{
                 while(uli.hasNext()){
                     SocketChannel sc = uli.next();
                     
-                    if(sc.toString().equals(su)){
+                    if(getusermap().get(sc).equals(su)){
                         System.out.println("Kick " + sc);
                         server.log("Kick " + sc);
-                        server.closeUser(sc);
+                        try {
+                            server.closeUser(sc);
+                        } catch (IOException ex) {
+                            Logger.getLogger(ServerController.class.getName()).log(Level.SEVERE, null, ex);
+                        }
                     }
                 }
             }
@@ -355,15 +361,20 @@ class ServerController{
 
         @Override
         public void actionPerformed(ActionEvent ae) {
-            Iterator<SocketChannel> uli = getusermap().keySet().iterator();
-                
-                while(uli.hasNext()){
-                    SocketChannel sc = uli.next();
-                    
-                    System.out.println("Kick " + sc);
-                    server.log("Kick " + sc);
-                    server.closeUser(sc);
+            
+                Iterator<SocketChannel> ui = getusermap().keySet().iterator();
+
+                while(ui.hasNext()){
+                    try {
+                        SocketChannel sc = ui.next();
+
+                        server.closeUser(sc);
+                    } catch (IOException ex) {
+                        Logger.getLogger(ServerController.class.getName()).log(Level.SEVERE, null, ex);
+                    }
                 }
+            
+            
         }
         
     }

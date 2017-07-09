@@ -333,11 +333,14 @@ public class Client{
         }).start();
     }
     
-    private boolean sent = false;
+    public boolean sent = false;
     public void writeImage(byte[] ba){
+        
         if(connected){
             if(channel != null){
                 sent = false;
+                System.out.println("SIZE: " + ba.length);
+                
                 ByteBuffer buf = ByteBuffer.wrap(ba);
                 buf.put(ba);
                 buf.flip();
@@ -355,6 +358,7 @@ public class Client{
                 sent = true;
             }
         }
+        
     }
     public static void main(String[] args){
         Client client = new Client();

@@ -1,6 +1,7 @@
 package network;
 
 import java.io.BufferedWriter;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -67,6 +69,8 @@ class Server{
             
             sSelector = Selector.open();
             server = ServerSocketChannel.open();
+            
+            
             server.configureBlocking(false);
             
             if(!server.socket().isBound()){
@@ -97,43 +101,15 @@ class Server{
             System.exit(0);
         }
     }
-    public synchronized void serverAccept(SelectionKey key) throws IOException{
-        ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
-        SocketChannel channel = serverChannel.accept();
-        channel.configureBlocking(false);
-        channel.register(this.sSelector, SelectionKey.OP_READ);
-        
-        try{
-            String username;
-            int alloc = 8192;
-            ByteBuffer buffer = ByteBuffer.allocate(alloc);
-            int numRead = channel.read(buffer);
-            
-            if(numRead == -1){
-                channel.close();
-                key.cancel();
-                System.out.println("Read Key Closed: " + channel.toString());
-                return;
-            }
-
-            byte[] data = new byte[numRead];
-            System.arraycopy(buffer.array(),0,data,0,numRead);
-            
-            if(new String(data).startsWith("USERNAME=")){
-                username = new String(data).substring("USERNAME=".length());
-                write(channel,"USERNAME=" + username);
-            }else{
-                username = "USER" + (new Random().nextInt(900)+100);
-            }
-            
-            write(channel,"Welcome " + username);
-            addUserToMap(channel, username);
-            
-        }catch(Exception ex){
-            System.out.println("Accepting Ex: " + ex);
-            log("Accepting Ex: " + ex);
+    public synchronized void serverAccept(SelectionKey key){
+        try {
+            ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
+            SocketChannel channel = serverChannel.accept();
+            channel.configureBlocking(false);
+            channel.register(this.sSelector, SelectionKey.OP_READ);
+        } catch (IOException ex) {
+            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
         }
-        
     }
     public synchronized void serverDisconnect(){
         if(connected == false){
@@ -176,6 +152,41 @@ class Server{
     }
     
     //Clients
+    private String getAcceptanceString(SocketChannel channel){
+        try {
+            String username;
+            int alloc = 1024;
+            ByteBuffer buffer = ByteBuffer.allocate(alloc);
+            int numRead = channel.read(buffer);
+            buffer.flip();
+            
+            if(numRead == -1){
+                channel.close();
+                System.out.println("Acceptance String Closed: " + channel.toString());
+                return null;
+            }
+            if(numRead == 0){
+                
+            }
+            
+            byte[] data = new byte[numRead];
+            System.arraycopy(buffer.array(),0,data,0,numRead);
+            String string = new String(data);
+            
+           
+            if(string.startsWith("USERNAME=")){
+                username = string.substring("USERNAME=".length());
+                //write(channel,"USERNAME=" + username);
+            }else{
+                username = "USER" + (new Random().nextInt(900)+100);
+            }
+            
+            return username;
+        } catch (IOException ex) {
+            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return null;
+    }
     private void keyCheck(){
         new Thread(new Runnable(){
             @Override
@@ -197,16 +208,13 @@ class Server{
                             continue;
                         }
                         if(key.isAcceptable()){
-                            try {
-                                serverAccept(key);
-                            } catch (IOException ex) {
-                                System.out.println("Accept Acception: " + ex);
-                                log("Accept Acception: " + ex);
-                            }
+                            serverAccept(key);
                         }
                         if(key.isReadable()){
                             try {
-                                read(key);
+                                
+                                readImage(key);
+                                //read(key);
                             } catch (Exception ex) {
                                 System.out.println("Read Acception: " + ex);
                                 log("Read Key Close Acception: " + ex);
@@ -260,11 +268,57 @@ class Server{
         if(numRead > 0){
             byte[] data = new byte[numRead];
             System.arraycopy(buffer.array(),0,data,0,numRead);
-            String string = new String(data);
-            System.out.println("FROM " + userMap.get(channel) + ": " + string);
-            log("FROM " + userMap.get(channel) + ": " + string);
+            String string = Arrays.toString(data);
+            System.out.println(string);
+            //System.out.println("FROM " + userMap.get(channel) + ": " + string);
+            //log("FROM " + userMap.get(channel) + ": " + string);
+            
+            try{
+                //String username = getAcceptanceString(channel);
+                String username = "";
+
+                addUserToMap(channel, username);
+                write(channel,"Welcome " + username);
+
+            }catch(Exception ex){
+                System.err.println("Accepting Ex: " + ex);
+                log("Accepting Ex: " + ex);
+            }
         }
     }
+    private void readImage(SelectionKey key){
+        SocketChannel channel = (SocketChannel) key.channel();
+        try {
+            int alloc = 8192;
+            ByteBuffer buffer = ByteBuffer.allocate(alloc);
+            int numRead = channel.read(buffer);
+            
+            if(numRead == -1){
+                channel.close();
+                key.cancel();
+                System.out.println("Read Key Closed: " + channel.toString());
+                log("Read Key Closed: " + channel.toString());
+                return;
+            }
+            
+            if(numRead > 0){
+                byte[] data = new byte[numRead];
+                System.arraycopy(buffer.array(),0,data,0,numRead);
+                
+                byte[] d = data;
+                String string = Arrays.toString(data);
+                System.out.println(data);
+                //System.out.println("FROM " + userMap.get(channel) + ": " + string);
+                //log("FROM " + userMap.get(channel) + ": " + string);
+            }
+        } catch (IOException ex) {
+            System.err.println("Read Image Exception: " + ex);
+            log("Read Image Exception: " + ex);
+        }
+        
+    }
+    
+    
     private void write(SocketChannel channel, String string) throws IOException{
         
         if(string == null){
@@ -308,7 +362,8 @@ class Server{
     }
     
     //UserList
-    public void closeUser(SocketChannel s){
+    public synchronized void closeUser(SocketChannel s) throws IOException{
+        
         Iterator<SocketChannel> userIter = userMap.keySet().iterator();
 
         while(userIter.hasNext()){
@@ -317,12 +372,7 @@ class Server{
                 continue;
             }
             if(s.equals(sc)){
-                try {
-                    sc.close();
-                } catch (IOException ex) {
-                    System.err.println("User Close Exception: " + ex);
-                    log("User Close Exception: " + ex);
-                }
+                sc.close();
             }
         } 
     }

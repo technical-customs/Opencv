@@ -53,47 +53,6 @@ class ClientController{
     }
     //**********END GUI TO SERVER*************//
     
-    private void checkServerConnection(SocketChannel channel){
-        new Thread(new Runnable(){
-            @Override
-            public void run(){
-                try{
-                    
-                    while(client.getConnected()){
-                        
-                        if(!client.getConnected()){
-                            try{
-                                disconnectClient();
-                            }catch(Exception ex){System.out.println("R " + ex);}
-
-                            if(!client.getConnected()){
-                                System.out.println("Running close ");
-                                gui.enableConnectionEditing(true);
-                                gui.writeToDisplay("DISCONNECTED" + "\n");
-                            }
-                        }
-                        
-                       
-                    }
-                    if(!client.getConnected()){
-                        try{
-                            disconnectClient();
-                        }catch(Exception ex){System.out.println("R " + ex);}
-
-                        if(!client.getConnected()){
-                            System.out.println("Running close ");
-                            gui.enableConnectionEditing(true);
-                            gui.writeToDisplay("DISCONNECTED" + "\n");
-                        }
-                    }
-                    
-                    
-                }catch(Exception ex){
-                    System.out.println("Check server exception: " + ex);
-                }
-            }
-        }).start();
-    }
     private void disconnectClient(){
         client.disconnectChannel();
         gui.enableConnectionEditing(true);
@@ -236,9 +195,8 @@ class ClientController{
                 disconnectClient();
             }catch(Exception ex){}
             
-            if(!client.isChannelConnected()){
+            if(!client.getConnected()){
                 gui.enableConnectionEditing(true);
-                gui.writeToDisplay("DISCONNECTED" + "\n");
             }
         }
     }
