@@ -20,15 +20,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.opencv.core.Core;
+import org.opencv.core.Mat;
+import visualdisplay.Display;
 class Server{
+    //display
+    private Display display;
     //logfile
-    
     final private String logfileDir = System.getProperty("user.home")+ "/Desktop/log/";
     final private String logfileName = logfileDir + "log.txt";
     final private File logfile;
@@ -41,11 +46,18 @@ class Server{
     private boolean connected = false;
     private ServerSocketChannel server;
     private Selector sSelector;
+    private Mat mat;
     
-    public Server(){
-        //System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+    public Server() throws IOException{
+        System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+        
         userList = new ArrayList<>();
         userMap = new HashMap<>();
+        
+        //create display
+        mat = new Mat();
+        display = new Display();
+        display.setTitle("SERVER DISPLAY");
         
         //create log file
         logfile = new File(logfileDir);
@@ -68,14 +80,13 @@ class Server{
             log("PORT NUMBER: " + portnumber);
             
             sSelector = Selector.open();
+            
             server = ServerSocketChannel.open();
             
             
             server.configureBlocking(false);
+            server.socket().bind(new InetSocketAddress(ipAddress, portnumber));
             
-            if(!server.socket().isBound()){
-                server.socket().bind(new InetSocketAddress(ipAddress, portnumber));
-            }
             
             SelectionKey socketServerSelectionKey = server.register(this.sSelector, SelectionKey.OP_ACCEPT);
             
@@ -94,23 +105,39 @@ class Server{
             keyCheck();
             searchForUsers();
             
-        }catch(IOException ex){
+        }catch(Exception ex){
             System.out.println("Server Connect Exception: " + ex);
             log("Server Connect Exception: " + ex);
             serverDisconnect();
             System.exit(0);
         }
     }
+    
     public synchronized void serverAccept(SelectionKey key){
         try {
             ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
             SocketChannel channel = serverChannel.accept();
             channel.configureBlocking(false);
             channel.register(this.sSelector, SelectionKey.OP_READ);
+            
+            try{
+                //String username = getAcceptanceString(channel);
+                String username = "" + (new Random().nextInt(100)+1);
+
+                addUserToMap(channel, username);
+                initReadBuffer(channel);
+                //write(channel,"Welcome " + username);
+
+            }catch(Exception ex){
+                System.err.println("Accepting Ex: " + ex);
+                log("Accepting Ex: " + ex);
+            }
+            
         } catch (IOException ex) {
             Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+    
     public synchronized void serverDisconnect(){
         if(connected == false){
             return;
@@ -187,6 +214,7 @@ class Server{
         }
         return null;
     }
+    
     private void keyCheck(){
         new Thread(new Runnable(){
             @Override
@@ -209,10 +237,10 @@ class Server{
                         }
                         if(key.isAcceptable()){
                             serverAccept(key);
+                            
                         }
                         if(key.isReadable()){
                             try {
-                                
                                 readImage(key);
                                 //read(key);
                             } catch (Exception ex) {
@@ -250,6 +278,7 @@ class Server{
             }
         }).start();
     }
+    
     private void read(SelectionKey key) throws IOException{
         SocketChannel channel = (SocketChannel) key.channel();
         
@@ -273,31 +302,96 @@ class Server{
             //System.out.println("FROM " + userMap.get(channel) + ": " + string);
             //log("FROM " + userMap.get(channel) + ": " + string);
             
-            try{
-                //String username = getAcceptanceString(channel);
-                String username = "";
+            
+        }
+    }
+    
+    ByteBuffer target;
+    
+    private void initReadBuffer(SocketChannel channel){
+        if(target != null){
+            target.clear();
+        }
+        
+        int alloc = 100;
+        ByteBuffer buffer = ByteBuffer.allocate(alloc);
+        int numRead = -1;
+        try {
+            numRead = channel.read(buffer);
+        } catch (IOException ex) {
+            Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
+        }
 
-                addUserToMap(channel, username);
-                write(channel,"Welcome " + username);
-
-            }catch(Exception ex){
-                System.err.println("Accepting Ex: " + ex);
-                log("Accepting Ex: " + ex);
+        if(numRead == -1){
+            try {
+                channel.close();
+                //key.cancel();
+                System.out.println("Closed: " + channel.toString());
+                log("Closed: " + channel.toString());
+                return;
+            } catch (IOException ex) {
+                Logger.getLogger(Server.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
+
+        if(numRead > 0){
+            byte[] data = new byte[numRead];
+            System.arraycopy(buffer.array(),0,data,0,numRead);
+            
+            String string = new String(data);
+            String[] strings = string.split(" ");
+            int size = 0, width = 0, height = 0, type = 0;
+            System.out.println(string);
+            
+            for(String st: strings){
+                System.out.println(st);
+                
+                if(st.startsWith("SIZE=")){
+                    String s = st.substring("SIZE=".length()).trim();
+                    size = Integer.parseInt(s);
+                    System.out.println("CREATE ARRAY SIZED: " + size);
+                    target = ByteBuffer.wrap(new byte[size]);
+                    
+                }
+                if(st.startsWith("WIDTH=")){
+                    String s = st.substring("WIDTH=".length()).trim();
+                    width = Integer.parseInt(s);
+                    System.out.println("MAT WIDTH: " + width);
+                }
+                if(st.startsWith("HEIGHT=")){
+                    String s = st.substring("HEIGHT=".length()).trim();
+                    height = Integer.parseInt(s);
+                    System.out.println("MAT HEIGHT: " + height);
+                }
+                if(st.startsWith("TYPE=")){
+                    String s = st.substring("TYPE=".length()).trim();
+                    type = Integer.parseInt(s);
+                    System.out.println("MAT TYPE: " + type);
+                }
+                
+            }     
+            mat = new Mat(width, height, type);
+            System.out.println(mat.toString());
+            
+            System.out.println(display.getFrameGrabber().toString());
+            display.getFrameGrabber().loadPicture(mat);
+            
+        }
+        
     }
     private void readImage(SelectionKey key){
         SocketChannel channel = (SocketChannel) key.channel();
+        
         try {
-            int alloc = 8192;
+            int alloc = 1024;
             ByteBuffer buffer = ByteBuffer.allocate(alloc);
             int numRead = channel.read(buffer);
             
             if(numRead == -1){
-                channel.close();
-                key.cancel();
                 System.out.println("Read Key Closed: " + channel.toString());
                 log("Read Key Closed: " + channel.toString());
+                channel.close();
+                key.cancel();
                 return;
             }
             
@@ -305,9 +399,29 @@ class Server{
                 byte[] data = new byte[numRead];
                 System.arraycopy(buffer.array(),0,data,0,numRead);
                 
-                byte[] d = data;
-                String string = Arrays.toString(data);
-                System.out.println(data);
+                if(new String(data).equalsIgnoreCase("SENT")){
+                    
+                    System.out.println("Image Sent");
+                    //System.out.println("TARGET SIZE: " + target.array().length);
+                    
+                    target.rewind();
+                    
+                    
+                    System.out.println("TARGET: " + target.toString());
+                    System.out.println("TARGET: " + Arrays.toString(target.array()));
+                    System.out.println("TARGET: " + target.get());
+                    
+                    target.clear();
+                    return;
+                }
+                if(target.hasRemaining()){
+                    target.put(data);
+                }
+                
+                //System.out.println("TARGET SIZE: " + target.position());
+                
+                //System.out.println(Arrays.toString(target.array()));
+                //display.getFrameGrabber().loadPicture(mat);
                 //System.out.println("FROM " + userMap.get(channel) + ": " + string);
                 //log("FROM " + userMap.get(channel) + ": " + string);
             }
@@ -317,7 +431,6 @@ class Server{
         }
         
     }
-    
     
     private void write(SocketChannel channel, String string) throws IOException{
         

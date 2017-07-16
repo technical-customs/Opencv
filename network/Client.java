@@ -4,10 +4,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.logging.Level;
@@ -170,22 +168,28 @@ public class Client{
         }).start();
     }
     public void write(String string){
+        if(!connected){
+            System.out.println("NOT CONNECTED");
+            return;
+        }
         if(connected){
             if(channel != null){
-                ByteBuffer buf = ByteBuffer.wrap(string.getBytes());
-                buf.put(string.getBytes());
+                ByteBuffer buf = ByteBuffer.wrap((string + " ").getBytes());
+                buf.put((string + " ").getBytes());
+                
                 buf.flip();
 
                 while(buf.hasRemaining()) {
                     try {
                         channel.write(buf);
                     } catch (IOException ex) {
-                        System.err.println("Write to key ex: " + ex);
-                        return;
+                        System.err.println("Write to client key ex: " + ex);
+                        buf.clear();
+                        disconnectChannel();
                     }
                 }
-                
                 buf.clear();
+                
             }
         }
     }
@@ -333,6 +337,8 @@ public class Client{
         }).start();
     }
     
+    
+    
     public boolean sent = false;
     public void writeImage(byte[] ba){
         
@@ -340,6 +346,7 @@ public class Client{
             if(channel != null){
                 sent = false;
                 System.out.println("SIZE: " + ba.length);
+                //write("SIZE="+ba.length);
                 
                 ByteBuffer buf = ByteBuffer.wrap(ba);
                 buf.put(ba);
@@ -350,16 +357,20 @@ public class Client{
                         channel.write(buf);
                         
                     } catch (IOException ex) {
-                        System.err.println("Write to key ex: " + ex);
+                        System.err.println("Write Image ex: " + ex);
+                        disconnectChannel();
+                        
                         return;
                     }
                 }
+                write("SENT");
                 System.out.println("SENT");
                 sent = true;
             }
         }
         
     }
+    
     public static void main(String[] args){
         Client client = new Client();
         
